@@ -1,6 +1,7 @@
 
 const User = require("../models/User");
 const bcrypt = require("bcrypt");
+const Donor = require("../models/Donor");
 
 exports.register = async (req, res) => {
     try {
@@ -48,6 +49,26 @@ exports.register = async (req, res) => {
             phone,
             city
         });
+        if (role === "donor") {
+            await Donor.create({
+            user: user._id,
+            bloodGroup: req.body.bloodGroup,
+            city
+          });
+        }  
+
+        
+       const allowedBloodGroups = [
+            "A+", "A-", "B+", "B-",
+            "AB+", "AB-", "O+", "O-"];
+
+        if (role === "donor" && !allowedBloodGroups.includes(req.body.bloodGroup)
+        ) {
+         return res.status(400).json({
+            success: false,
+            message: "A valid blood group is required for donors"
+          });
+         }
 
         res.status(201).json({
             success: true,
@@ -133,6 +154,32 @@ exports.login = async (req, res) => {
         res.status(500).json({
             success: false,
             message: "Login failed"
+        });
+    }
+};
+
+
+exports.getMe = async (req, res) => {
+    try {
+        const user = await User.findById(req.user.id).select(
+            "-passwordHash"
+        );
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found"
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            user
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: "Failed to fetch user"
         });
     }
 };
