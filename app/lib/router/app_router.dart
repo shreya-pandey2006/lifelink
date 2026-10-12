@@ -1,5 +1,4 @@
 import 'package:go_router/go_router.dart';
-
 import '../providers/auth_provider.dart';
 import '../screens/auth/login_screen.dart';
 import '../screens/auth/register_screen.dart';
@@ -11,10 +10,7 @@ import '../widgets/placeholder_screen.dart';
 
 GoRouter buildRouter(AuthProvider auth) {
   return GoRouter(
-    initialLocation: '/splash',
-    // Re-run redirect whenever AuthProvider calls notifyListeners().
-    refreshListenable: auth,
-    redirect: (context, state) {
+    initialLocation: '/splash', refreshListenable: auth, redirect: (context, state) {
       final loc = state.matchedLocation;
 
       if (auth.initializing) return loc == '/splash' ? null : '/splash';
@@ -28,8 +24,6 @@ GoRouter buildRouter(AuthProvider auth) {
       GoRoute(path: '/splash', builder: (c, s) => const SplashScreen()),
       GoRoute(path: '/login', builder: (c, s) => const LoginScreen()),
       GoRoute(path: '/register', builder: (c, s) => const RegisterScreen()),
-
-      // The four tabs from the Stitch design.
       StatefulShellRoute.indexedStack(
         builder: (context, state, shell) => MainShell(navigationShell: shell),
         branches: [
@@ -51,9 +45,6 @@ GoRouter buildRouter(AuthProvider auth) {
           ]),
         ],
       ),
-
-      // Later days add these here, outside the tabs:
-      //   /request/new, /request/:id (after /request/new)
     ],
   );
 }

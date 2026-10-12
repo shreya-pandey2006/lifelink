@@ -13,25 +13,19 @@ class MainShell extends StatelessWidget {
         selectedIndex: navigationShell.currentIndex,
         onDestinationSelected: (i) => navigationShell.goBranch(
           i,
-          // Tapping the current tab again returns to its first screen.
           initialLocation: i == navigationShell.currentIndex,
         ),
         destinations: const [
           NavigationDestination(
-              icon: Icon(Icons.home_outlined),
-              selectedIcon: Icon(Icons.home),
-              label: 'Home'),
+              icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Home',),
           NavigationDestination(
-              icon: Icon(Icons.emergency_outlined),
-              selectedIcon: Icon(Icons.emergency),
+              icon: Icon(Icons.emergency_outlined), selectedIcon: Icon(Icons.emergency),
               label: 'Requests'),
           NavigationDestination(
-              icon: Icon(Icons.notifications_outlined),
-              selectedIcon: Icon(Icons.notifications),
+              icon: Icon(Icons.notifications_outlined), selectedIcon: Icon(Icons.notifications),
               label: 'Alerts'),
           NavigationDestination(
-              icon: Icon(Icons.person_outline),
-              selectedIcon: Icon(Icons.person),
+              icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person),
               label: 'Profile'),
         ],
       ),
