@@ -3,13 +3,11 @@ const router = express.Router();
 
 const {
   createBloodRequest,
-  getBloodRequests
+  getBloodRequests,
+  getPotentialDonors
 } = require("../controllers/bloodRequestController");
 
-const {
-  auth,
-  requireRole
-} = require("../middleware/authMiddleware");
+const { auth, requireRole } = require("../middleware/authMiddleware");
 
 // Create a blood request
 router.post(
@@ -25,6 +23,14 @@ router.get(
   auth,
   requireRole("requester", "admin"),
   getBloodRequests
+);
+
+// Find eligible potential donors for a blood request
+router.get(
+  "/:requestId/potential-donors",
+  auth,
+  requireRole("requester", "admin"),
+  getPotentialDonors
 );
 
 module.exports = router;
