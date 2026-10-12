@@ -1,4 +1,3 @@
-
 const express = require("express");
 const cors = require("cors");
 const mongoose = require("mongoose");
@@ -6,6 +5,7 @@ require("dotenv").config();
 const healthRoutes = require("./routes/healthRoutes");
 const authRoutes = require("./routes/authRoutes");
 const donorRoutes = require("./routes/donorRoutes");
+const bloodRequestRoutes = require("./routes/bloodRequestRoutes");
 
 const app = express();
 
@@ -14,6 +14,7 @@ app.use(express.json());
 app.use("/api/health", healthRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/donors", donorRoutes);
+app.use("/api/requests", bloodRequestRoutes);
 
 app.get("/", (req, res) => {
     res.json({
