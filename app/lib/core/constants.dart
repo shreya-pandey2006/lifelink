@@ -8,3 +8,6 @@ const kDonatesTo = {
 
 List<String> donorsFor(String recipient) =>
     kBloodGroups.where((g) => kDonatesTo[g]!.contains(recipient)).toList();
+    const kUrgencyDescriptions = {
+  1: 'Scheduled within 24-48 hours', 2: 'Required within 6-12 hours', 3: 'Immediate broadcast to all nearby donors',
+};
