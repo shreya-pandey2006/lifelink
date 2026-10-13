@@ -6,6 +6,7 @@ const healthRoutes = require("./routes/healthRoutes");
 const authRoutes = require("./routes/authRoutes");
 const donorRoutes = require("./routes/donorRoutes");
 const bloodRequestRoutes = require("./routes/bloodRequestRoutes");
+const donorResponseRoutes = require("./routes/donorResponseRoutes");
 
 const app = express();
 
@@ -15,6 +16,7 @@ app.use("/api/health", healthRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/donors", donorRoutes);
 app.use("/api/requests", bloodRequestRoutes);
+app.use("/api/responses", donorResponseRoutes);
 
 app.get("/", (req, res) => {
     res.json({

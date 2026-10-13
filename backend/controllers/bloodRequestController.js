@@ -160,17 +160,30 @@ const getPotentialDonors = async (req, res) => {
       "_id user bloodGroup city available lastDonationDate age weightKg hemoglobinGDl totalDonations"
     );
 
-    // Exclude donors who donated within the previous 90 days.
+    // Exclude donors with incomplete donation history or
+    // a donation within the previous 90 days.
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - 90);
 
-    const eligibleDonors = donors.filter(donor => {
-      if (!donor.lastDonationDate) {
-        return true;
-      }
+    const eligibleDonors = donors.filter((donor) => {
+    // A donor with no recorded donations may be eligible.
+    if (donor.totalDonations === 0) {
+      return !donor.lastDonationDate;
+    }
 
-      return new Date(donor.lastDonationDate) <= cutoffDate;
-    });
+    // If they have donated before, the date must be recorded.
+    if (!donor.lastDonationDate) {
+      return false;
+    }
+
+    const lastDonation = new Date(donor.lastDonationDate);
+
+   if (Number.isNaN(lastDonation.getTime())) {
+      return false;
+    }
+
+    return lastDonation <= cutoffDate;
+  });
 
     return res.status(200).json({
       success: true,
