@@ -7,12 +7,13 @@ import '../../providers/auth_provider.dart';
 import '../../providers/request_provider.dart';
 import '../../services/api_client.dart';
 import '../../widgets/ui.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import '../../services/location_service.dart';
+import '../../widgets/location_card.dart';
 const _groupHints = {
   'A+': 'Eligible','A-': 'Rare', 'B+': 'Eligible', 'B-': 'Rare', 'AB+': 'Universal Rec.', 'AB-': 'Crit. Rare',  'O+': 'High Need', 'O-': 'Universal',
 };
-
 const _urgencyIcons = {1: Icons.schedule, 2: Icons.warning_amber_rounded, 3: Icons.emergency};
-
 class CreateRequestScreen extends StatefulWidget {
   const CreateRequestScreen({super.key});
   @override
@@ -28,6 +29,8 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
   bool _groupError = false;
   bool _loading = false;
   String? _error;
+  LatLng? _pin;
+  bool _locating = false;
   @override
   void initState() {
     super.initState();
@@ -39,7 +42,6 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
     _hospital.dispose();
     super.dispose();
   }
-
   String get _groupInfo {
     final g = _bloodGroup;
     if (g == null) return 'Select the blood group the patient needs.';
@@ -48,7 +50,30 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
     }
     return 'Compatible donor groups: ${donorsFor(g).join(', ')}';
   }
-
+    Future<void> _chooseOnMap() async {
+    final result = await context.push<LatLng>(
+      '/pick-location',
+      extra: {'pin': _pin, 'city': _city},
+    );
+    if (result != null && mounted) setState(() => _pin = result);
+  }
+  Future<void> _useGps() async {
+    setState(() => _locating = true);
+    try {
+      final pos = await LocationService.currentPosition();
+      if (mounted) setState(() => _pin = LatLng(pos.latitude, pos.longitude));
+    } on LocationException catch (e) {
+      _toast(e.message);
+    } catch (_) {
+      _toast('Could not read your location. Try again.');
+    } finally {
+      if (mounted) setState(() => _locating = false);
+    }
+  }
+  void _toast(String text) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+  }
   Future<void> _submit() async {
     final formOk = _formKey.currentState!.validate();
     setState(() => _groupError = _bloodGroup == null);
@@ -58,12 +83,8 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
       _error = null;
     });
     try {
-      await context.read<RequestProvider>().create(
-            bloodGroup: _bloodGroup!,
-            units: _units,
-            hospitalName: _hospital.text,
-            city: _city!,
-            urgency: _urgency,
+      await context.read<RequestProvider>().create( bloodGroup: _bloodGroup!, units: _units, 
+      hospitalName: _hospital.text, city: _city!, urgency: _urgency, lat: _pin?.latitude, lng: _pin?.longitude,
           );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -94,25 +115,16 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _bloodGroupCard(),
-                const SizedBox(height: 16),
-                _unitsCard(),
-                const SizedBox(height: 16),
-                _urgencyCard(),
-                const SizedBox(height: 16),
+                _bloodGroupCard(), const SizedBox(height: 16),
+                _unitsCard(), const SizedBox(height: 16),
+                _urgencyCard(), const SizedBox(height: 16),
                 _facilityCard(),
-                if (_error != null) ...[
-                  const SizedBox(height: 14),
-                  Text(_error!, style: const TextStyle(color: Colors.red)),
-                ],
+                if (_error != null) ...[ const SizedBox(height: 14), Text(_error!, style: const TextStyle(color: Colors.red)) ],
                 const SizedBox(height: 22),
                 PrimaryButton( label: 'Submit Blood Request', icon: Icons.campaign_outlined, loading: _loading, onPressed: _submit ),
                 const SizedBox(height: 8),
-                Center(
-                  child: TextButton(
-                    onPressed: _loading ? null : () => context.pop(),
-                    child: const Text('Cancel',
-                        style: TextStyle( color: kMuted, fontWeight: FontWeight.w700)),
+                Center( child: TextButton( onPressed: _loading ? null : () => context.pop(),
+                    child: const Text('Cancel', style: TextStyle( color: kMuted, fontWeight: FontWeight.w700)),
                   ),
                 ),
               ],
@@ -122,23 +134,18 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
       ),
     );
   }
-
   Widget _bloodGroupCard() {
     return AppCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Column( crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          const Row( mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Target Blood Group',
-                  style: TextStyle( fontSize: 16, fontWeight: FontWeight.w800, color: kInk)),
+              Text('Target Blood Group', style: TextStyle( fontSize: 16, fontWeight: FontWeight.w800, color: kInk)),
               Pill('REQUIRED'),
             ],
           ),
           const SizedBox(height: 14),
-          GridView.count(
-            crossAxisCount: 4, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), mainAxisSpacing: 8,crossAxisSpacing: 8, childAspectRatio: 0.95,
+          GridView.count( crossAxisCount: 4, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), mainAxisSpacing: 8,crossAxisSpacing: 8, childAspectRatio: 0.95,
             children: kBloodGroups.map((g) {
               final on = g == _bloodGroup;
               return GestureDetector(
@@ -146,16 +153,12 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
                   _bloodGroup = g;
                   _groupError = false;
                 }),
-                child: Container(
-                  decoration: BoxDecoration( color: on ? kPrimaryDark : const Color(0xFFF4F1F6), borderRadius: BorderRadius.circular(16) ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                child: Container( decoration: BoxDecoration( color: on ? kPrimaryDark : const Color(0xFFF4F1F6), borderRadius: BorderRadius.circular(16) ),
+                  child: Column( mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(g,
-                          style: TextStyle( fontSize: 20, fontWeight: FontWeight.w800, color: on ? Colors.white : kInk)),
+                      Text(g, style: TextStyle( fontSize: 20, fontWeight: FontWeight.w800, color: on ? Colors.white : kInk)),
                       const SizedBox(height: 2),
-                      Text(_groupHints[g]!, textAlign: TextAlign.center,
-                          style: TextStyle( fontSize: 9, fontWeight: FontWeight.w600, color: on ? Colors.white70 : kMuted)),
+                      Text(_groupHints[g]!, textAlign: TextAlign.center, style: TextStyle( fontSize: 9, fontWeight: FontWeight.w600, color: on ? Colors.white70 : kMuted)),
                     ],
                   ),
                 ),
@@ -163,25 +166,20 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
             }).toList(),
           ),
           const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-                color: const Color(0xFFF4F1F6), borderRadius: BorderRadius.circular(12)),
+          Container( padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration( color: const Color(0xFFF4F1F6), borderRadius: BorderRadius.circular(12)),
             child: Row(
               children: [
-                const Icon(Icons.shield_outlined, color: kPrimaryDark, size: 20),
-                const SizedBox(width: 10),
+                const Icon(Icons.shield_outlined, color: kPrimaryDark, size: 20), const SizedBox(width: 10),
                 Expanded(
-                  child: Text(_groupInfo,
-                      style: const TextStyle(fontSize: 12.5, color: kInk)),
+                  child: Text(_groupInfo, style: const TextStyle(fontSize: 12.5, color: kInk)),
                 ),
               ],
             ),
           ),
           if (_groupError) ...[
             const SizedBox(height: 8),
-            const Text('Select the blood group needed',
-                style: TextStyle(color: Colors.red, fontSize: 12)),
+             const Text('Select the blood group needed', style: TextStyle(color: Colors.red, fontSize: 12)),
           ],
         ],
       ),
@@ -195,36 +193,20 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Units Required',
-                    style: TextStyle( fontSize: 16, fontWeight: FontWeight.w800, color: kInk)),
+                Text('Units Required', style: TextStyle( fontSize: 16, fontWeight: FontWeight.w800, color: kInk)),
                 SizedBox(height: 2),
-                Text('Standard whole blood bag (~450 ml)',
-                    style: TextStyle(fontSize: 12, color: kMuted)),
+                Text('Standard whole blood bag (~450 ml)', style: TextStyle(fontSize: 12, color: kMuted)),
               ],
             ),
           ),
-          Container(
-            padding: const EdgeInsets.all(4),
-            decoration: BoxDecoration(
-                color: const Color(0xFFF1EEF3),
-                borderRadius: BorderRadius.circular(30)),
+          Container( padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration( color: const Color(0xFFF1EEF3), borderRadius: BorderRadius.circular(30)),
             child: Row(
               children: [
-                _RoundButton(
-                  icon: Icons.remove, filled: false,
-                  onTap: _units > 1 ? () => setState(() => _units--) : null,
-                ),
+                _RoundButton( icon: Icons.remove, filled: false, onTap: _units > 1 ? () => setState(() => _units--) : null),
                 SizedBox( width: 38,
-                  child: Center(
-                    child: Text('$_units',
-                        style: const TextStyle(
-                            fontSize: 20,  fontWeight: FontWeight.w800, color: kInk)),
-                  ),
-                ),
-                _RoundButton(
-                  icon: Icons.add, filled: true,
-                  onTap: _units < 10 ? () => setState(() => _units++) : null,
-                ),
+                  child: Center( child: Text('$_units', style: const TextStyle( fontSize: 20,  fontWeight: FontWeight.w800, color: kInk)) )),
+                _RoundButton( icon: Icons.add, filled: true, onTap: _units < 10 ? () => setState(() => _units++) : null),
               ],
             ),
           ),
@@ -234,22 +216,17 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
   }
   Widget _urgencyCard() {
     return AppCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Column( crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          const Row( mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Urgency Level',
-                  style: TextStyle( fontSize: 16, fontWeight: FontWeight.w800, color: kInk)),
-              Text('Emergency Dispatch',
-                  style: TextStyle( fontSize: 12, fontWeight: FontWeight.w700, color: kPrimaryDark)),
+              Text('Urgency Level', style: TextStyle( fontSize: 16, fontWeight: FontWeight.w800, color: kInk)),
+              Text('Emergency Dispatch', style: TextStyle( fontSize: 12, fontWeight: FontWeight.w700, color: kPrimaryDark)),
             ],
           ),
           const SizedBox(height: 12),
           for (final level in [1, 2, 3]) ...[
-            _UrgencyTile(
-              title: kUrgencyLabels[level]!, description: kUrgencyDescriptions[level]!, icon: _urgencyIcons[level]!, selected: _urgency == level,
+            _UrgencyTile( title: kUrgencyLabels[level]!, description: kUrgencyDescriptions[level]!, icon: _urgencyIcons[level]!, selected: _urgency == level,
               onTap: () => setState(() => _urgency = level),
             ),
             if (level != 3) const SizedBox(height: 10),
@@ -260,21 +237,16 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
   }
   Widget _facilityCard() {
     return AppCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Column( crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Row(
             children: [
               Icon(Icons.local_hospital_outlined, color: kPrimaryDark), SizedBox(width: 8),
-              Text('Medical Facility & Destination',
-                  style: TextStyle( fontSize: 16, fontWeight: FontWeight.w800, color: kInk)),
+              Text('Medical Facility & Destination', style: TextStyle( fontSize: 16, fontWeight: FontWeight.w800, color: kInk)),
             ],
           ),
-          const SizedBox(height: 16),
-          const FieldLabel('Hospital / Clinic Name'),
-          TextFormField(
-            controller: _hospital, decoration: fieldDecoration(
-                hint: 'e.g. City Medical Emergency Pavilion', icon: Icons.business_outlined),
+          const SizedBox(height: 16), const FieldLabel('Hospital / Clinic Name'),
+          TextFormField( controller: _hospital, decoration: fieldDecoration( hint: 'e.g. City Medical Emergency Pavilion', icon: Icons.business_outlined),
             validator: (v) => (v == null || v.trim().isEmpty)  ? 'Enter the hospital name' : null,
           ),
           const SizedBox(height: 16), const FieldLabel('City'),
@@ -286,6 +258,8 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
                 .toList(),
             onChanged: (v) => setState(() => _city = v), validator: (v) => v == null ? 'Select a city' : null,
           ),
+          const SizedBox(height: 16), const FieldLabel('Hospital Location (recommended)'),
+          LocationCard( pin: _pin, busy: _locating, onChooseOnMap: _chooseOnMap, onUseGps: _useGps ),
         ],
       ),
     );
@@ -302,14 +276,12 @@ class _RoundButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container( width: 40, height: 40,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle, color: filled ? (enabled ? kPrimary : kPrimarySoft) : Colors.white),
+        decoration: BoxDecoration( shape: BoxShape.circle, color: filled ? (enabled ? kPrimary : kPrimarySoft) : Colors.white),
         child: Icon(icon, size: 20, color: filled ? Colors.white : (enabled ? kInk : const Color(0xFFBDBAC2))),
       ),
     );
   }
 }
-
 class _UrgencyTile extends StatelessWidget {
   final String title;
   final String description;
@@ -326,18 +298,14 @@ class _UrgencyTile extends StatelessWidget {
           color: selected ? kPrimarySoft : const Color(0xFFF4F1F6), borderRadius: BorderRadius.circular(18), border: Border.all( color: selected ? kPrimaryDark : Colors.transparent, width: 1.5) ),
         child: Row(
           children: [
-            CircleAvatar(
-              radius: 20, backgroundColor: selected ? kPrimaryDark : Colors.white,
+            CircleAvatar( radius: 20, backgroundColor: selected ? kPrimaryDark : Colors.white,
               child: Icon(icon, size: 20, color: selected ? Colors.white : kMuted) ),
             const SizedBox(width: 12),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: Column( crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title,
-                      style: TextStyle( fontSize: 15, fontWeight: FontWeight.w800, color: selected ? kPrimaryDark : kInk)),
-                  const SizedBox(height: 2),
-                  Text(description, style: const TextStyle(fontSize: 12, color: kMuted)),
+                  Text(title, style: TextStyle( fontSize: 15, fontWeight: FontWeight.w800, color: selected ? kPrimaryDark : kInk)),
+                  const SizedBox(height: 2), Text(description, style: const TextStyle(fontSize: 12, color: kMuted)),
                 ],
               ),
             ),
