@@ -10,6 +10,8 @@ import '../screens/profile/profile_screen.dart';
 import '../screens/requests/create_request_screen.dart';
 import '../screens/requests/my_requests_screen.dart';
 import '../widgets/placeholder_screen.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import '../screens/map/location_picker_screen.dart';
 GoRouter buildRouter(AuthProvider auth) {
   return GoRouter(
     initialLocation: '/splash', refreshListenable: auth, redirect: (context, state) {
@@ -44,7 +46,12 @@ GoRouter buildRouter(AuthProvider auth) {
           StatefulShellBranch(routes: [ GoRoute(path: '/profile', builder: (c, s) => const ProfileScreen()), ]),
         ],
       ),
-      GoRoute( path: '/request/new', builder: (c, s) => const CreateRequestScreen(), ),
+            GoRoute(
+        path: '/pick-location', builder: (c, s) {
+          final extra = s.extra as Map<String, dynamic>?;
+          return LocationPickerScreen( initial: extra?['pin'] as LatLng?, city: extra?['city'] as String?);
+        },
+      ),
     ],
   );
 }
