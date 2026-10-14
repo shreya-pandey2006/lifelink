@@ -15,7 +15,12 @@ const allowedOrigins = (process.env.ALLOWED_ORIGINS || "")
     .map(origin => origin.trim())
     .filter(Boolean);
 
-app.use(cors());
+app.use(cors({
+  origin: "*",
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
+  allowedHeaders: ["Content-Type", "Authorization"]
+}));const cors = require("cors");
+
 app.use(express.json());
 // Handle invalid JSON in request body
 app.use((err, req, res, next) => {
