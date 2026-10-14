@@ -75,7 +75,7 @@ const updateMLDetails = async (req, res) => {
         success: false,
         message: "Age, weightKg and hemoglobinGDl must be numbers"
       });
-    }
+    };
 
     if (
       age < 18 ||

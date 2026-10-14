@@ -10,6 +10,11 @@ const donorResponseRoutes = require("./routes/donorResponseRoutes");
 
 const app = express();
 
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || "")
+    .split(",")
+    .map(origin => origin.trim())
+    .filter(Boolean);
+
 app.use(cors());
 app.use(express.json());
 // Handle invalid JSON in request body
@@ -31,6 +36,30 @@ app.use("/api/responses", donorResponseRoutes);
 app.get("/", (req, res) => {
     res.json({
         message: "LifeLink backend is running!"
+    });
+});
+
+// Handle unknown API routes
+app.use((req, res, next) => {
+    res.status(404).json({
+        success: false,
+        message: `Route not found: ${req.method} ${req.originalUrl}`
+    });
+});
+
+// Global error handler
+app.use((err, req, res, next) => {
+    console.error("API Error:", err.message);
+
+    if (res.headersSent) {
+        return next(err);
+    }
+
+    res.status(err.status || 500).json({
+        success: false,
+        message: err.status && err.status < 500
+            ? err.message
+            : "Internal server error"
     });
 });
 

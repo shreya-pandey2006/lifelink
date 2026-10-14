@@ -5,58 +5,169 @@ const {
   getCompatibleBloodGroups
 } = require("../services/donorMatchingService");
 
+// ML service (urgency prediction + donor ranking)
+const { predictUrgency, rankDonors } = require("../services/mlService");
+
+// Valid blood groups and urgency levels
+const VALID_BLOOD_GROUPS = [
+  "A+", "A-", "B+", "B-",
+  "AB+", "AB-", "O+", "O-"
+];
+
+const VALID_URGENCY_LEVELS = [
+  "normal",
+  "urgent",
+  "emergency"
+];
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// Escape special characters before using city in a regex
+const escapeRegex = (value) => {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+};
+
+// Days since last donation (never donated -> 365)
+const daysSince = (date) => {
+  if (!date) return 365;
+  const time = new Date(date).getTime();
+  if (Number.isNaN(time)) return 365;
+  return Math.max(0, Math.floor((Date.now() - time) / DAY_MS));
+};
+
 // Create a blood request
 const createBloodRequest = async (req, res) => {
   try {
-    const { bloodGroup, city, units, urgency } = req.body;
+    // Validate request body
+    if (
+      !req.body ||
+      typeof req.body !== "object" ||
+      Array.isArray(req.body)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Request body must be a valid JSON object"
+      });
+    }
 
-    if (!bloodGroup || !city || units === undefined) {
+    const { bloodGroup, city, units, urgency, patient } = req.body;
+
+    // Validate required fields
+    if (
+      bloodGroup === undefined ||
+      city === undefined ||
+      units === undefined
+    ) {
       return res.status(400).json({
         success: false,
         message: "Blood group, city and units are required"
       });
     }
 
-    const validBloodGroups = [
-      "A+", "A-", "B+", "B-",
-      "AB+", "AB-", "O+", "O-"
-    ];
+    // Validate field types
+    if (
+      typeof bloodGroup !== "string" ||
+      typeof city !== "string"
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Blood group and city must be strings"
+      });
+    }
 
-    if (!validBloodGroups.includes(bloodGroup)) {
+    const normalizedBloodGroup = bloodGroup.trim().toUpperCase();
+    const normalizedCity = city.trim();
+
+    // Validate blood group
+    if (!VALID_BLOOD_GROUPS.includes(normalizedBloodGroup)) {
       return res.status(400).json({
         success: false,
         message: "Invalid blood group"
       });
     }
 
+    // Validate city and units
+    if (!normalizedCity || normalizedCity.length > 100) {
+      return res.status(400).json({
+        success: false,
+        message: "City must contain 1 to 100 characters"
+      });
+    }
+
     if (
-      typeof city !== "string" ||
-      !city.trim() ||
+      typeof units !== "number" ||
       !Number.isInteger(units) ||
       units < 1
     ) {
       return res.status(400).json({
         success: false,
-        message: "Enter a valid city and units (minimum 1)"
+        message: "Units must be a positive integer"
       });
     }
 
+    // Validate optional urgency
     if (
       urgency !== undefined &&
-      !["normal", "urgent", "emergency"].includes(urgency)
+      (
+        typeof urgency !== "string" ||
+        !VALID_URGENCY_LEVELS.includes(urgency)
+      )
     ) {
       return res.status(400).json({
         success: false,
-        message: "Invalid urgency"
+        message: "Urgency must be normal, urgent or emergency"
       });
+    }
+
+    // Validate optional patient details (used only by the urgency ML model)
+    if (
+      patient !== undefined &&
+      patient !== null &&
+      (typeof patient !== "object" || Array.isArray(patient))
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Patient must be an object"
+      });
+    }
+
+    // Predict urgency with ML (optional: only if patient data is sent).
+    // If the ML service fails, the request is still saved.
+    let predictedUrgency = null;
+
+    if (patient) {
+      try {
+        predictedUrgency = await predictUrgency({
+          age: patient.age,
+          gender: patient.gender,
+          weight_kg: patient.weightKg,
+          blood_group: normalizedBloodGroup,
+          city: normalizedCity,
+          health_issue: patient.healthIssue,
+          hemoglobin_g_dl: patient.hemoglobinGDl,
+          platelet_count: patient.plateletCount,
+          systolic_bp: patient.systolicBp,
+          heart_rate: patient.heartRate,
+          spo2_percent: patient.spo2Percent,
+          active_bleeding: patient.activeBleeding,
+          previous_transfusions: patient.previousTransfusions,
+          blood_component_needed: patient.bloodComponentNeeded,
+          units_required: units,
+          required_within_hours: patient.requiredWithinHours
+        });
+      } catch (mlError) {
+        console.error("Urgency ML error:", mlError.message);
+      }
     }
 
     const bloodRequest = await BloodRequest.create({
       requester: req.user.id,
-      bloodGroup,
-      city: city.trim(),
+      bloodGroup: normalizedBloodGroup,
+      city: normalizedCity,
       units,
-      urgency: urgency || "normal"
+      urgency: urgency || "normal",
+      patient: patient || null,
+      predictedUrgency
     });
 
     return res.status(201).json({
@@ -108,7 +219,8 @@ const getPotentialDonors = async (req, res) => {
   try {
     const { requestId } = req.params;
 
-    if (!requestId.match(/^[0-9a-fA-F]{24}$/)) {
+    // Validate MongoDB ObjectId
+    if (!/^[0-9a-fA-F]{24}$/.test(requestId)) {
       return res.status(400).json({
         success: false,
         message: "Invalid blood request ID"
@@ -124,7 +236,7 @@ const getPotentialDonors = async (req, res) => {
       });
     }
 
-    // Requesters can view matches only for their own requests.
+    // Requesters can view matches only for their own requests
     if (
       req.user.role !== "admin" &&
       bloodRequest.requester.toString() !== req.user.id
@@ -146,50 +258,101 @@ const getPotentialDonors = async (req, res) => {
       });
     }
 
+    const safeCityRegex = new RegExp(
+      `^${escapeRegex(bloodRequest.city.trim())}$`,
+      "i"
+    );
+
     const donors = await Donor.find({
       bloodGroup: { $in: compatibleGroups },
-      city: {
-        $regex: `^${bloodRequest.city.replace(
-          /[.*+?^${}()|[\]\\]/g,
-          "\\$&"
-        )}$`,
-        $options: "i"
-      },
+      city: { $regex: safeCityRegex },
       available: true
     }).select(
       "_id user bloodGroup city available lastDonationDate age weightKg hemoglobinGDl totalDonations"
     );
 
-    // Exclude donors with incomplete donation history or
-    // a donation within the previous 90 days.
+    // Exclude donors who donated within the previous 90 days
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - 90);
 
     const eligibleDonors = donors.filter((donor) => {
-    // A donor with no recorded donations may be eligible.
-    if (donor.totalDonations === 0) {
-      return !donor.lastDonationDate;
+      const totalDonations = donor.totalDonations ?? 0;
+
+      // Donors with no previous donations may be eligible
+      // when no previous donation date is recorded
+      if (totalDonations === 0) {
+        return !donor.lastDonationDate;
+      }
+
+      // Previous donations require a valid recorded date
+      if (!donor.lastDonationDate) {
+        return false;
+      }
+
+      const lastDonation = new Date(donor.lastDonationDate);
+
+      if (Number.isNaN(lastDonation.getTime())) {
+        return false;
+      }
+
+      return lastDonation <= cutoffDate;
+    });
+
+    // Donors with all ML features are sent to the ML ranking API.
+    // Donors with missing data are added at the end, unranked.
+    const hasMlData = (d) => d.age && d.weightKg && d.hemoglobinGDl;
+
+    const mlReady = eligibleDonors.filter(hasMlData);
+    const mlSkipped = eligibleDonors.filter((d) => !hasMlData(d));
+
+    let rankedList = mlReady.map((d) => d.toObject());
+    let rankingApplied = false;
+
+    if (mlReady.length > 0) {
+      try {
+        const result = await rankDonors(
+          mlReady.map((d) => ({
+            donor_id: d._id.toString(),
+            age: d.age,
+            weight: d.weightKg,
+            hemoglobin: d.hemoglobinGDl,
+            days_since_last_donation: daysSince(d.lastDonationDate)
+          }))
+        );
+
+        const scoreMap = new Map(
+          result.map((r) => [r.donor_id, r.response_probability])
+        );
+
+        rankedList = mlReady
+          .map((d) => ({
+            ...d.toObject(),
+            responseProbability: scoreMap.get(d._id.toString()) ?? null
+          }))
+          .sort(
+            (a, b) =>
+              (b.responseProbability ?? -1) - (a.responseProbability ?? -1)
+          );
+
+        rankingApplied = true;
+      } catch (mlError) {
+        // Fallback: keep the unranked list if ML is down
+        console.error("Rank donors ML error:", mlError.message);
+      }
     }
 
-    // If they have donated before, the date must be recorded.
-    if (!donor.lastDonationDate) {
-      return false;
-    }
-
-    const lastDonation = new Date(donor.lastDonationDate);
-
-   if (Number.isNaN(lastDonation.getTime())) {
-      return false;
-    }
-
-    return lastDonation <= cutoffDate;
-  });
+    const potentialDonors = [
+      ...rankedList,
+      ...mlSkipped.map((d) => d.toObject())
+    ];
 
     return res.status(200).json({
       success: true,
       requestId: bloodRequest._id,
-      totalPotentialDonors: eligibleDonors.length,
-      potentialDonors: eligibleDonors
+      predictedUrgency: bloodRequest.predictedUrgency,
+      rankingApplied,
+      totalPotentialDonors: potentialDonors.length,
+      potentialDonors
     });
   } catch (error) {
     console.error("Find potential donors error:", error.message);
