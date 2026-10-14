@@ -310,15 +310,18 @@ const getPotentialDonors = async (req, res) => {
 
     if (mlReady.length > 0) {
       try {
-        const result = await rankDonors(
-          mlReady.map((d) => ({
-            donor_id: d._id.toString(),
-            age: d.age,
-            weight: d.weightKg,
-            hemoglobin: d.hemoglobinGDl,
-            days_since_last_donation: daysSince(d.lastDonationDate)
-          }))
-        );
+        
+       const result = await rankDonors(
+         mlReady.map((d) => ({
+         donorId: d._id.toString(),
+         age: d.age,
+         weight_kg: d.weightKg,
+         hemoglobin_g_dL: d.hemoglobinGDl,
+         total_donations: d.totalDonations ?? 0,
+         days_since_last_donation: daysSince(d.lastDonationDate)
+     }))
+   );
+
 
         const scoreMap = new Map(
           result.map((r) => [r.donor_id, r.response_probability])

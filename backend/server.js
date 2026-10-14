@@ -7,6 +7,7 @@ const authRoutes = require("./routes/authRoutes");
 const donorRoutes = require("./routes/donorRoutes");
 const bloodRequestRoutes = require("./routes/bloodRequestRoutes");
 const donorResponseRoutes = require("./routes/donorResponseRoutes");
+const mlRoutes = require("./routes/mlRoutes");
 
 const app = express();
 
@@ -19,7 +20,7 @@ app.use(cors({
   origin: "*",
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
   allowedHeaders: ["Content-Type", "Authorization"]
-}));const cors = require("cors");
+}));
 
 app.use(express.json());
 // Handle invalid JSON in request body
@@ -37,6 +38,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/donors", donorRoutes);
 app.use("/api/requests", bloodRequestRoutes);
 app.use("/api/responses", donorResponseRoutes);
+app.use("/api/ml", mlRoutes);
 
 app.get("/", (req, res) => {
     res.json({
