@@ -19,13 +19,19 @@ const bloodRequestSchema = new mongoose.Schema(
       type: String,
       required: true,
       trim: true,
+      minlength: 1,
+      maxlength: 100,
       index: true
     },
 
     units: {
       type: Number,
       required: true,
-      min: 1
+      min: 1,
+      validate: {
+        validator: Number.isSafeInteger,
+        message: "Units must be a positive integer"
+      }
     },
 
     urgency: {
@@ -39,6 +45,16 @@ const bloodRequestSchema = new mongoose.Schema(
       enum: ["open", "matched", "fulfilled", "cancelled"],
       default: "open",
       index: true
+    },
+
+    patient: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null
+    },
+
+    predictedUrgency: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null
     }
   },
   { timestamps: true }
