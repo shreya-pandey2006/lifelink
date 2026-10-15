@@ -260,6 +260,23 @@ const getPotentialDonors = async (req, res) => {
       });
     }
 
+    // Validate pagination parameters
+    const page = Number(req.query.page ?? 1);
+    const limit = Number(req.query.limit ?? 10);
+
+    if (
+      !Number.isSafeInteger(page) ||
+      page < 1 ||
+      !Number.isSafeInteger(limit) ||
+      limit < 1 ||
+      limit > 100
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Page must be a positive integer and limit must be between 1 and 100"
+      });
+    }
+
     const bloodRequest = await BloodRequest.findById(requestId);
 
     if (!bloodRequest) {
@@ -311,27 +328,28 @@ const getPotentialDonors = async (req, res) => {
     const eligibleDonors = donors.filter((donor) => {
       const totalDonations = donor.totalDonations ?? 0;
 
-      // Donors with no previous donations may be eligible
-      // when no previous donation date is recorded
       if (totalDonations === 0) {
         return !donor.lastDonationDate;
       }
 
-      // Previous donations require a valid recorded date
       if (!donor.lastDonationDate) {
         return false;
       }
+
       const lastDonation = new Date(donor.lastDonationDate);
 
       if (Number.isNaN(lastDonation.getTime())) {
         return false;
       }
+
       return lastDonation <= cutoffDate;
     });
 
-    // Donors with all ML features are sent to the ML ranking API.
-    // Donors with missing data are added at the end, unranked.
-    const hasMlData = (d) => d.age && d.weightKg && d.hemoglobinGDl;
+    // Separate donors according to ML feature availability
+    const hasMlData = (d) =>
+      d.age != null &&
+      d.weightKg != null &&
+      d.hemoglobinGDl != null;
 
     const mlReady = eligibleDonors.filter(hasMlData);
     const mlSkipped = eligibleDonors.filter((d) => !hasMlData(d));
@@ -341,48 +359,72 @@ const getPotentialDonors = async (req, res) => {
 
     if (mlReady.length > 0) {
       try {
-       const result = await rankDonors(
-         mlReady.map((d) => ({
-         donorId: d._id.toString(),
-         age: d.age,
-         weight_kg: d.weightKg,
-         hemoglobin_g_dL: d.hemoglobinGDl,
-         total_donations: d.totalDonations ?? 0,
-         days_since_last_donation: daysSince(d.lastDonationDate)
-     }))
-   );
-        const scoreMap = new Map(
-          result.map((r) => [r.donor_id, r.response_probability])
+        const result = await rankDonors(
+          mlReady.map((d) => ({
+            donorId: d._id.toString(),
+            age: d.age,
+            weight_kg: d.weightKg,
+            hemoglobin_g_dL: d.hemoglobinGDl,
+            total_donations: d.totalDonations ?? 0,
+            days_since_last_donation: daysSince(d.lastDonationDate)
+          }))
         );
+
+        if (!Array.isArray(result)) {
+          throw new Error("ML ranking service returned invalid data");
+        }
+
+        const scoreMap = new Map(
+          result.map((r) => [
+            r.donor_id,
+            r.response_probability
+          ])
+        );
+
         rankedList = mlReady
           .map((d) => ({
             ...d.toObject(),
-            responseProbability: scoreMap.get(d._id.toString()) ?? null
+            responseProbability:
+              scoreMap.get(d._id.toString()) ?? null
           }))
           .sort(
             (a, b) =>
-              (b.responseProbability ?? -1) - (a.responseProbability ?? -1)
+              (b.responseProbability ?? -1) -
+              (a.responseProbability ?? -1)
           );
 
         rankingApplied = true;
       } catch (mlError) {
-        // Fallback: keep the unranked list if ML is down
         console.error("Rank donors ML error:", mlError.message);
       }
     }
 
+    // Preserve existing fallback: donors without ML data are appended
     const potentialDonors = [
       ...rankedList,
       ...mlSkipped.map((d) => d.toObject())
     ];
+
+    // Paginate after eligibility filtering and ranking
+    const totalPotentialDonors = potentialDonors.length;
+    const totalPages = Math.ceil(totalPotentialDonors / limit);
+    const skip = (page - 1) * limit;
+    const paginatedDonors = potentialDonors.slice(skip, skip + limit);
 
     return res.status(200).json({
       success: true,
       requestId: bloodRequest._id,
       predictedUrgency: bloodRequest.predictedUrgency,
       rankingApplied,
-      totalPotentialDonors: potentialDonors.length,
-      potentialDonors
+      totalPotentialDonors,
+      potentialDonors: paginatedDonors,
+      pagination: {
+        currentPage: page,
+        limit,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1
+      }
     });
   } catch (error) {
     console.error("Find potential donors error:", error.message);
