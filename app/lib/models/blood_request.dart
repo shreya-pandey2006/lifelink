@@ -16,21 +16,46 @@ class BloodRequest {
     required this.urgency, required this.status, this.lat, this.lng, this.createdAt,
   });
   bool get isOpen => status == 'open';
-  factory BloodRequest.fromJson(Map<String, dynamic> j) => BloodRequest(
+     factory BloodRequest.fromJson(Map<String, dynamic> j) => BloodRequest(
         id: (j['id'] ?? j['_id'] ?? '').toString(),
-        bloodGroup: (j['bloodGroup'] ?? '').toString(),
-        units: _toInt(j['units'], 1),
+        bloodGroup: (j['bloodGroup'] ?? j['blood_group'] ?? '').toString(),
+        units: _toInt(j['units'] ?? j['unitsRequired'], 1),
         unitsAccepted: _toInt(j['unitsAccepted'], 0),
-        hospitalName: (j['hospitalName'] ?? '').toString(),
-        city: (j['city'] ?? '').toString(),
-        urgency: _toInt(j['urgency'], 2),
-        status: (j['status'] ?? 'open').toString(),
-        lat: _toDouble(j['lat']),
-        lng: _toDouble(j['lng']),
+        hospitalName: (j['hospitalName'] ?? j['hospital'] ?? '').toString(),
+        city: (j['city'] ?? j['location'] ?? '').toString(),
+        urgency: _urgency(j['urgency'] ?? j['urgencyLevel']),
+        status: _status(j['status']),
+        lat: _toDouble(j['lat'] ?? j['latitude']),
+        lng: _toDouble(j['lng'] ?? j['longitude']),
         createdAt:
             DateTime.tryParse((j['createdAt'] ?? '').toString())?.toLocal(),
       );
 }
+
+int _urgency(dynamic v) {
+  if (v is num) return v.toInt().clamp(1, 3);
+  switch ('$v'.toLowerCase()) {
+    case 'low':
+    case 'normal':
+      return 1;
+    case 'high':
+    case 'urgent':
+      return 2;
+    case 'critical':
+    case 'emergency':
+      return 3;
+    case 'medium':
+      return 2;
+  }
+  return 2;
+}
+
+String _status(dynamic v) {
+  final s = '${v ?? 'open'}'.toLowerCase();
+  return (s == 'pending' || s == 'active') ? 'open' : s;
+}
+
 int _toInt(dynamic v, int fallback) =>
     v is num ? v.toInt() : (int.tryParse('$v') ?? fallback);
 double? _toDouble(dynamic v) => v is num ? v.toDouble() : double.tryParse('$v');
+
