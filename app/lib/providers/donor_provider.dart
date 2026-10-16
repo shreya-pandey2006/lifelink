@@ -1,36 +1,30 @@
 import 'package:flutter/material.dart';
-import '../models/donor_response_item.dart';
-import '../services/api_client.dart';
 import '../core/format.dart';
-
+import '../services/api_client.dart';
 class DonorProvider extends ChangeNotifier {
   bool available = true;
   bool loaded = false;
   String? error;
-
+  double? lat;
+  double? lng;
   int? age;
-  double? weightKg;
-  double? hemoglobinGDl;
-  int totalDonations = 0;
-  DateTime? lastDonationDate;
-
-  List<DonorResponseItem> myResponses = [];
-  bool loadingResponses = false;
-
+  double? weight;
+  double? hemoglobin;
+  int? daysSinceLastDonation;
+  bool get hasLocation => lat != null && lng != null;
+  bool get hasHealthDetails => age != null && weight != null && hemoglobin != null && daysSinceLastDonation != null;
   Future<void> load() async {
     try {
       final data = await ApiClient.instance.get('/donors/me');
-      final donor = extractMap(data, ['donor', 'profile']);
+      final donor = (data is Map && data['donor'] is Map) ? data['donor'] as Map : data as Map;
       available = donor['available'] != false;
-      age = donor['age'] is num ? (donor['age'] as num).toInt() : int.tryParse('${donor['age']}');
-      weightKg = donor['weightKg'] is num ? (donor['weightKg'] as num).toDouble() : double.tryParse('${donor['weightKg']}');
-      hemoglobinGDl = donor['hemoglobinGDl'] is num
-          ? (donor['hemoglobinGDl'] as num).toDouble()
-          : double.tryParse('${donor['hemoglobinGDl']}');
-      totalDonations = donor['totalDonations'] is num
-          ? (donor['totalDonations'] as num).toInt()
-          : (int.tryParse('${donor['totalDonations']}') ?? 0);
-      lastDonationDate = DateTime.tryParse((donor['lastDonationDate'] ?? '').toString())?.toLocal();
+      lat = asDouble(donor['lat']);
+      lng = asDouble(donor['lng']);
+      age = donor['age'] == null ? null : asInt(donor['age'], 0);
+      weight = asDouble(donor['weight']);
+      hemoglobin = asDouble(donor['hemoglobin']);
+      final days = donor['daysSinceLastDonation'] ?? donor['days_since_last_donation'];
+      daysSinceLastDonation = days == null ? null : asInt(days, 0);
       loaded = true;
       error = null;
     } on ApiException catch (e) {
@@ -45,7 +39,8 @@ class DonorProvider extends ChangeNotifier {
     available = value;
     notifyListeners();
     try {
-      await ApiClient.instance.patch('/donors/availability', {'available': value});
+      await ApiClient.instance
+          .patch('/donors/me/availability', {'available': value});
       return null;
     } on ApiException catch (e) {
       available = previous;
@@ -57,17 +52,11 @@ class DonorProvider extends ChangeNotifier {
       return 'Something went wrong. Please try again.';
     }
   }
-  Future<String?> saveMlDetails({
-    required num age,required num weightKg,required num hemoglobinGDl,
-  }) async {
+  Future<String?> updateLocation(double newLat, double newLng) async {
     try {
-      final data = await ApiClient.instance.patch('/donors/ml-details', {
-        'age': age,'weightKg': weightKg,'hemoglobinGDl': hemoglobinGDl,
-      });
-      final donor = extractMap(data, ['donor']);
-      this.age = donor['age'] is num ? (donor['age'] as num).toInt() : age.toInt();
-      this.weightKg = donor['weightKg'] is num ? (donor['weightKg'] as num).toDouble() : weightKg.toDouble();
-      this.hemoglobinGDl = donor['hemoglobinGDl'] is num ? (donor['hemoglobinGDl'] as num).toDouble() : hemoglobinGDl.toDouble();
+      await ApiClient.instance.put('/donors/me', {'lat': newLat, 'lng': newLng});
+      lat = newLat;
+      lng = newLng;
       notifyListeners();
       return null;
     } on ApiException catch (e) {
@@ -76,48 +65,35 @@ class DonorProvider extends ChangeNotifier {
       return 'Something went wrong. Please try again.';
     }
   }
-  Future<void> loadMyResponses({bool silent = false}) async {
-    if (!silent) {
-      loadingResponses = true;
-      notifyListeners();
-    }
-    try {
-      final data = await ApiClient.instance.get('/responses/my');
-      final list = extractList(data, ['responses']);
-      myResponses = list.map((e) => DonorResponseItem.fromJson(asMap(e))).toList();
-    } catch (_) {}
-    loadingResponses = false;
-    notifyListeners();
-  }
-  Future<String?> respondToRequest(
-    String requestId, {
-    required bool accept, String message = '',
+  Future<String?> saveHealth({
+    required int age, required double weight, required double hemoglobin, required int daysSinceLastDonation,
   }) async {
     try {
-      await ApiClient.instance.post('/responses/$requestId', {
-        'status': accept ? 'accepted' : 'declined',
-        if (message.isNotEmpty) 'message': message.trim(),
-      });
-      await loadMyResponses(silent: true);
+      await ApiClient.instance.patch('/donors/ml-details', { 
+        'age': age, 'weight': weight, 'hemoglobin': hemoglobin, 'daysSinceLastDonation': daysSinceLastDonation, 'days_since_last_donation': daysSinceLastDonation,
+        });
+      this.age = age;
+      this.weight = weight;
+      this.hemoglobin = hemoglobin;
+      this.daysSinceLastDonation = daysSinceLastDonation;
+      notifyListeners();
       return null;
     } on ApiException catch (e) {
       return e.message;
     } catch (_) {
-      return 'Failed to save response. Please try again.';
+      return 'Something went wrong. Please try again.';
     }
   }
-
   void clear() {
     available = true;
     loaded = false;
     error = null;
+    lat = null;
+    lng = null;
     age = null;
-    weightKg = null;
-    hemoglobinGDl = null;
-    totalDonations = 0;
-    lastDonationDate = null;
-    myResponses = [];
-    loadingResponses = false;
+    weight = null;
+    hemoglobin = null;
+    daysSinceLastDonation = null;
     notifyListeners();
   }
 }
