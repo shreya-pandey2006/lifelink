@@ -2,15 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'core/theme.dart';
+import 'providers/alert_provider.dart';
 import 'providers/auth_provider.dart';
+import 'providers/donor_provider.dart';
 import 'providers/request_provider.dart';
 import 'router/app_router.dart';
 void main() {
   final auth = AuthProvider()..init();
   final router = buildRouter(auth);
-  runApp(
-    MultiProvider(
-      providers: [ ChangeNotifierProvider<AuthProvider>.value(value: auth), ChangeNotifierProvider(create: (_) => RequestProvider()),],
+  runApp( MultiProvider( providers: [
+        ChangeNotifierProvider<AuthProvider>.value(value: auth),
+        ChangeNotifierProvider(create: (_) => RequestProvider()),
+        ChangeNotifierProvider(create: (_) => AlertProvider()),
+        ChangeNotifierProvider(create: (_) => DonorProvider()),
+      ],
       child: LifeLinkApp(router: router),
     ),
   );
