@@ -39,7 +39,13 @@ exports.register = async (req, res) => {
                 message: "Please enter a valid phone number (10–15 digits)"
             });
         }
-
+        
+        if (typeof email !== "string") {
+            return res.status(400).json({
+                success: false,
+                message: "Please enter a valid email address"
+            });
+        }
         const normalizedEmail = email.trim().toLowerCase();
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -50,7 +56,7 @@ exports.register = async (req, res) => {
             });
         }
 
-        if (password.length < 6) {
+        if (typeof password !== "string" || password.length < 6) {
             return res.status(400).json({
                 success: false,
                 message: "Password must be at least 6 characters"
@@ -91,20 +97,27 @@ exports.register = async (req, res) => {
         const passwordHash = await bcrypt.hash(password, 10);
 
         const user = await User.create({
-            name,
-            email: normalizedEmail,
-            passwordHash,
-            role,
-            phone,
-            city
-        });
+        name: name.trim(),
+        email: normalizedEmail,
+        passwordHash,
+        role,
+        phone: phone ? phone.trim() : phone,
+        city: city.trim()
+    });
+
+    try {
         if (role === "donor") {
             await Donor.create({
-            user: user._id,
-            bloodGroup: req.body.bloodGroup,
-            city
-          });
-        }  
+                user: user._id,
+                bloodGroup: req.body.bloodGroup,
+                city: city.trim()
+            });
+        }
+    } catch (error) {
+    // Roll back the user if donor profile creation fails.
+        await User.findByIdAndDelete(user._id);
+        throw error;
+    }
 
         res.status(201).json({
             success: true,
@@ -132,12 +145,17 @@ exports.login = async (req, res) => {
     try {
         const { email, password } = req.body;
 
-        if (!email || !password) {
-            return res.status(400).json({
-                success: false,
-                message: "Email and password are required"
-            });
-        }
+       if (
+        typeof email !== "string" ||
+        !email.trim() ||
+        typeof password !== "string" ||
+        !password
+    ) {
+        return res.status(400).json({
+            success: false,
+            message: "Email and password are required"
+        });
+    }
         const normalizedEmail = email.trim().toLowerCase();
         const user = await User.findOne({
             email: normalizedEmail

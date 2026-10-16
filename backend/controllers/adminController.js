@@ -4,6 +4,31 @@ const Donor = require("../models/Donor");
 const BloodRequest = require("../models/BloodRequest");
 const DonorResponse = require("../models/DonorResponse");
 
+const validatePagination = (query) => {
+  const page = Number(query.page ?? 1);
+  const limit = Number(query.limit ?? 10);
+
+  if (
+    !Number.isSafeInteger(page) ||
+    page < 1 ||
+    !Number.isSafeInteger(limit) ||
+    limit < 1 ||
+    limit > 100
+  ) {
+    return {
+      error: "Page must be >= 1 and limit must be between 1 and 100"
+    };
+  }
+
+  const skip = (page - 1) * limit;
+
+  if (!Number.isSafeInteger(skip)) {
+    return { error: "Invalid pagination values" };
+  }
+
+  return { page, limit, skip };
+};
+
 // GET /api/admin/dashboard-stats
 exports.getDashboardStats = async (req, res) => {
   try {
@@ -41,13 +66,16 @@ exports.getDashboardStats = async (req, res) => {
 // GET /api/admin/users?page=1&limit=10
 exports.getAllUsers = async (req, res) => {
   try {
-    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
-    const limit = Math.min(
-      100,
-      Math.max(1, parseInt(req.query.limit, 10) || 10)
-    );
+    const pagination = validatePagination(req.query);
 
-    const skip = (page - 1) * limit;
+    if (pagination.error) {
+      return res.status(400).json({
+        success: false,
+        message: pagination.error
+      });
+    }
+
+const { page, limit, skip } = pagination;
 
     const [users, totalUsers] = await Promise.all([
       User.find()
@@ -82,17 +110,15 @@ exports.getAllUsers = async (req, res) => {
 // GET /api/admin/requests?page=1&limit=10
 exports.getAllBloodRequests = async (req, res) => {
   try {
-    const page = Math.max(
-      1,
-      parseInt(req.query.page, 10) || 1
-    );
+    const pagination = validatePagination(req.query);
 
-    const limit = Math.min(
-      100,
-      Math.max(1, parseInt(req.query.limit, 10) || 10)
-    );
-
-    const skip = (page - 1) * limit;
+    if (pagination.error) {
+      return res.status(400).json({
+        success: false,
+        message: pagination.error
+      });
+    }
+    const { page, limit, skip } = pagination;
 
     const [requests, totalRequests] = await Promise.all([
       BloodRequest.find()
@@ -128,17 +154,15 @@ exports.getAllBloodRequests = async (req, res) => {
 // GET /api/admin/donors?page=1&limit=10
 exports.getAllDonors = async (req, res) => {
   try {
-    const page = Math.max(
-      1,
-      parseInt(req.query.page, 10) || 1
-    );
+    const pagination = validatePagination(req.query);
 
-    const limit = Math.min(
-      100,
-      Math.max(1, parseInt(req.query.limit, 10) || 10)
-    );
-
-    const skip = (page - 1) * limit;
+    if (pagination.error) {
+      return res.status(400).json({
+        success: false,
+        message: pagination.error
+      });
+    }
+    const { page, limit, skip } = pagination;
 
     const [donors, totalDonors] = await Promise.all([
       Donor.find()
@@ -174,17 +198,15 @@ exports.getAllDonors = async (req, res) => {
 // GET /api/admin/responses?page=1&limit=10
 exports.getAllDonorResponses = async (req, res) => {
   try {
-    const page = Math.max(
-      1,
-      parseInt(req.query.page, 10) || 1
-    );
+    const pagination = validatePagination(req.query);
 
-    const limit = Math.min(
-      100,
-      Math.max(1, parseInt(req.query.limit, 10) || 10)
-    );
-
-    const skip = (page - 1) * limit;
+    if (pagination.error) {
+      return res.status(400).json({
+        success: false,
+        message: pagination.error
+      });
+    }
+    const { page, limit, skip } = pagination;
 
     const [responses, totalResponses] = await Promise.all([
       DonorResponse.find()

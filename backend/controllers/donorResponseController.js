@@ -1,4 +1,4 @@
-
+const mongoose = require("mongoose");
 const DonorResponse = require("../models/DonorResponse");
 const BloodRequest = require("../models/BloodRequest");
 const Donor = require("../models/Donor");
@@ -8,8 +8,24 @@ const respondToBloodRequest = async (req, res) => {
   try {
     const { requestId } = req.params;
     const { status, message = "" } = req.body;
+    if (!mongoose.isValidObjectId(requestId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid blood request ID"
+      });
+    }
 
-    if (!["accepted", "declined"].includes(status)) {
+    if (
+      typeof message !== "string" ||
+      message.length > 300
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Message must be a string with at most 300 characters"
+      });
+    }
+
+    if ( typeof status !== "string" || !["accepted", "declined"].includes(status)) {
       return res.status(400).json({
         success: false,
         message: "Status must be accepted or declined"
@@ -81,15 +97,51 @@ const respondToBloodRequest = async (req, res) => {
 // Donor views their own responses
 const getMyResponses = async (req, res) => {
   try {
-    const responses = await DonorResponse.find({
-      donor: req.user.id
-    })
-      .populate("bloodRequest", "bloodGroup city units urgency status createdAt")
-      .sort({ createdAt: -1 });
+    const page = Number(req.query.page ?? 1);
+    const limit = Number(req.query.limit ?? 10);
+
+    if (
+      !Number.isSafeInteger(page) ||
+      page < 1 ||
+      !Number.isSafeInteger(limit) ||
+      limit < 1 ||
+      limit > 100
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Page must be >= 1 and limit must be between 1 and 100"
+      });
+    }
+
+    const skip = (page - 1) * limit;
+
+    if (!Number.isSafeInteger(skip)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid pagination values"
+      });
+    }
+
+    const filter = { donor: req.user.id };
+
+    const [responses, total] = await Promise.all([
+      DonorResponse.find(filter)
+        .populate(
+          "bloodRequest",
+          "bloodGroup city units urgency status createdAt"
+        )
+        .sort({ createdAt: -1, _id: -1 })
+        .skip(skip)
+        .limit(limit),
+      DonorResponse.countDocuments(filter)
+    ]);
 
     return res.status(200).json({
       success: true,
-      total: responses.length,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
       responses
     });
   } catch (error) {
@@ -101,6 +153,7 @@ const getMyResponses = async (req, res) => {
     });
   }
 };
+
 
 module.exports = {
   respondToBloodRequest,

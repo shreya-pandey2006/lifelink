@@ -27,6 +27,16 @@ const getMyDonorProfile = async (req, res) => {
 
 const updateAvailability = async (req, res) => {
   try {
+    if (
+      !req.body ||
+      typeof req.body !== "object" ||
+      Array.isArray(req.body)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Request body must be an object"
+      });
+    }
     const { available } = req.body;
 
     if (typeof available !== "boolean") {
@@ -64,6 +74,16 @@ const updateAvailability = async (req, res) => {
 
 const updateMLDetails = async (req, res) => {
   try {
+    if (
+      !req.body ||
+      typeof req.body !== "object" ||
+      Array.isArray(req.body)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Request body must be an object"
+      });
+    }
     const { age, weightKg, hemoglobinGDl } = req.body;
 
     if (
@@ -75,19 +95,21 @@ const updateMLDetails = async (req, res) => {
         success: false,
         message: "Age, weightKg and hemoglobinGDl must be numbers"
       });
-    };
+    }
 
     if (
       age < 18 ||
       age > 100 ||
-      weightKg <= 0 ||
-      hemoglobinGDl <= 0
+      weightKg < 30 ||
+      weightKg > 300 ||
+      hemoglobinGDl < 3 ||
+      hemoglobinGDl > 25
     ) {
-      return res.status(400).json({
-        success: false,
-        message: "Please provide valid donor details"
-      });
-    }
+     return res.status(400).json({
+       success: false,
+       message: "Please provide valid donor details"
+     });
+   }
 
     const donor = await Donor.findOneAndUpdate(
       { user: req.user.id },
