@@ -15,10 +15,10 @@ class _MainShellState extends State<MainShell> {
   void initState() {
     super.initState();
     Future.microtask(() {
-      if (mounted) context.read<NotificationProvider>().load();
+      if (mounted) context.read<NotificationProvider>().fetchUnreadCount();
     });
-    _timer = Timer.periodic(const Duration(seconds: 15), (_) {
-      if (mounted) context.read<NotificationProvider>().load();
+    _timer = Timer.periodic(const Duration(seconds: 20), (_) {
+      if (mounted) context.read<NotificationProvider>().fetchUnreadCount();
     });
   }
   @override
@@ -31,8 +31,15 @@ class _MainShellState extends State<MainShell> {
     final unread = context.watch<NotificationProvider>().unread;
     return Scaffold( body: widget.navigationShell,
       bottomNavigationBar: NavigationBar( selectedIndex: widget.navigationShell.currentIndex,
-        onDestinationSelected: (i) => widget.navigationShell.goBranch( i, initialLocation: i == widget.navigationShell.currentIndex,
-        ),
+        onDestinationSelected: (i) {
+          if (i == 2) {
+            context.read<NotificationProvider>().load(silent: true, refresh: true);
+          }
+          widget.navigationShell.goBranch(
+            i,
+            initialLocation: i == widget.navigationShell.currentIndex,
+          );
+        },
         destinations: [
           const NavigationDestination( icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Home'),
           const NavigationDestination( icon: Icon(Icons.emergency_outlined), selectedIcon: Icon(Icons.emergency), label: 'Requests'),

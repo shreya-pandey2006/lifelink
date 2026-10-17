@@ -16,6 +16,7 @@ class ApiException implements Exception {
 class ApiClient {
   ApiClient._();
   static final ApiClient instance = ApiClient._();
+  http.Client client = http.Client();
   String? token;
   VoidCallback? onUnauthorized;
 
@@ -25,24 +26,29 @@ class ApiClient {
         if (token != null) 'Authorization': 'Bearer $token',
       };
 
-  Future<dynamic> get(String path) => _send('GET', path);
+  Future<dynamic> get(String path, {Map<String, dynamic>? queryParameters}) =>
+      _send('GET', path, null, queryParameters);
   Future<dynamic> post(String path, [Map<String, dynamic>? body]) =>
       _send('POST', path, body);
   Future<dynamic> put(String path, [Map<String, dynamic>? body]) =>
       _send('PUT', path, body);
   Future<dynamic> patch(String path, [Map<String, dynamic>? body]) =>
       _send('PATCH', path, body);
+  Future<dynamic> delete(String path, [Map<String, dynamic>? body]) =>
+      _send('DELETE', path, body);
 
   Future<http.Response> _request(String method, Uri uri, String? body) {
     switch (method) {
       case 'POST':
-        return http.post(uri, headers: _headers, body: body);
+        return client.post(uri, headers: _headers, body: body);
       case 'PUT':
-        return http.put(uri, headers: _headers, body: body);
+        return client.put(uri, headers: _headers, body: body);
       case 'PATCH':
-        return http.patch(uri, headers: _headers, body: body);
+        return client.patch(uri, headers: _headers, body: body);
+      case 'DELETE':
+        return client.delete(uri, headers: _headers, body: body);
       default:
-        return http.get(uri, headers: _headers);
+        return client.get(uri, headers: _headers);
     }
   }
 
@@ -63,7 +69,8 @@ class ApiClient {
   }
 
   Future<dynamic> _send(String method, String path,
-      [Map<String, dynamic>? body]) async {
+      [Map<String, dynamic>? body,
+      Map<String, dynamic>? queryParameters]) async {
     if (kUseMockApi) {
       return MockApi.instance.handle(method, path, body, token);
     }
@@ -74,7 +81,14 @@ class ApiClient {
     if (cleanBase.endsWith('/api') && cleanPath.startsWith('/api/')) {
       cleanPath = cleanPath.substring(4);
     }
-    final uri = Uri.parse('$cleanBase$cleanPath');
+    var uri = Uri.parse('$cleanBase$cleanPath');
+    if (queryParameters != null && queryParameters.isNotEmpty) {
+      final query = Map<String, dynamic>.from(uri.queryParameters);
+      queryParameters.forEach((k, v) {
+        if (v != null) query[k] = v.toString();
+      });
+      uri = uri.replace(queryParameters: query);
+    }
     final encoded = body == null ? null : jsonEncode(body);
     int attempts = 0;
     while (attempts < 2) {

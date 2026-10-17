@@ -31,7 +31,9 @@ class MockApi {
     // A short delay so loading spinners are visible, like a real network.
     await Future.delayed(const Duration(milliseconds: 500));
     final b = body ?? <String, dynamic>{};
-    final route = '$method $path';
+    final cleanPath =
+        path.contains('?') ? path.substring(0, path.indexOf('?')) : path;
+    final route = '$method $cleanPath';
 
     switch (route) {
       case 'POST /auth/register':
@@ -58,6 +60,8 @@ class MockApi {
         return _donations(token);
       case 'GET /notifications':
         return _notifications(token);
+      case 'GET /notifications/unread-count':
+        return _unreadCount(token);
       case 'PATCH /notifications/read-all':
         return _readAll(token);
     }
@@ -70,9 +74,17 @@ class MockApi {
     if (method == 'PATCH' && status != null) {
       return _setRequestStatus(status.group(1)!, b, token);
     }
-    final respond = RegExp(r'^/responses/([^/]+)/(accept|decline)$').firstMatch(path);
+    final respond = RegExp(r'^/responses/([^/]+)/(accept|decline)$').firstMatch(cleanPath);
     if (method == 'POST' && respond != null) {
       return _respond(respond.group(1)!, respond.group(2) == 'accept', token);
+    }
+    final readOne = RegExp(r'^/notifications/([^/]+)/read$').firstMatch(cleanPath);
+    if (method == 'PATCH' && readOne != null) {
+      return _readOne(readOne.group(1)!, token);
+    }
+    final deleteNotif = RegExp(r'^/notifications/([^/]+)$').firstMatch(cleanPath);
+    if (method == 'DELETE' && deleteNotif != null) {
+      return _deleteNotification(deleteNotif.group(1)!, token);
     }
 
     throw ApiException('Mock API: $route is not implemented yet', 404);
@@ -124,15 +136,21 @@ class MockApi {
     String? requestId,
   }) async {
     final all = await _loadNotifications();
+    final now = DateTime.now().toUtc().toIso8601String();
+    final id = 'N-${DateTime.now().microsecondsSinceEpoch}';
     all.insert(0, {
-      'id': 'N-${DateTime.now().microsecondsSinceEpoch}',
+      '_id': id,
+      'id': id,
       'userId': userId,
       'type': type,
       'title': title,
       'message': message,
+      'relatedRequest': requestId,
       'requestId': requestId,
+      'isRead': false,
       'read': false,
-      'createdAt': DateTime.now().toUtc().toIso8601String(),
+      'createdAt': now,
+      'updatedAt': now,
     });
     await _saveNotifications(all);
   }
@@ -508,17 +526,71 @@ class MockApi {
     final mine = (await _loadNotifications())
         .where((n) => n['userId'] == userId)
         .toList();
-    return {'notifications': mine};
+    return {
+      'success': true,
+      'notifications': mine,
+      'pagination': {
+        'total': mine.length,
+        'page': 1,
+        'limit': mine.length,
+      },
+    };
+  }
+
+  Future<Map<String, dynamic>> _unreadCount(String? token) async {
+    final userId = _userId(token);
+    final all = await _loadNotifications();
+    final count = all
+        .where((n) =>
+            n['userId'] == userId &&
+            n['isRead'] != true &&
+            n['read'] != true)
+        .length;
+    return {'success': true, 'unreadCount': count};
+  }
+
+  Future<Map<String, dynamic>> _readOne(String id, String? token) async {
+    final userId = _userId(token);
+    final all = await _loadNotifications();
+    final index = all.indexWhere(
+        (n) => (n['id'] == id || n['_id'] == id) && n['userId'] == userId);
+    if (index < 0) throw ApiException('Notification not found.', 404);
+    all[index]['isRead'] = true;
+    all[index]['read'] = true;
+    all[index]['updatedAt'] = DateTime.now().toUtc().toIso8601String();
+    await _saveNotifications(all);
+    return {'success': true, 'notification': all[index]};
   }
 
   Future<Map<String, dynamic>> _readAll(String? token) async {
     final userId = _userId(token);
     final all = await _loadNotifications();
+    final now = DateTime.now().toUtc().toIso8601String();
     for (final n in all) {
-      if (n['userId'] == userId) n['read'] = true;
+      if (n['userId'] == userId) {
+        n['isRead'] = true;
+        n['read'] = true;
+        n['updatedAt'] = now;
+      }
     }
     await _saveNotifications(all);
-    return {'ok': true};
+    return {'success': true, 'message': 'All notifications marked as read'};
+  }
+
+  Future<Map<String, dynamic>> _deleteNotification(
+      String id, String? token) async {
+    final userId = _userId(token);
+    final all = await _loadNotifications();
+    final index = all.indexWhere(
+        (n) => (n['id'] == id || n['_id'] == id) && n['userId'] == userId);
+    if (index < 0) throw ApiException('Notification not found.', 404);
+    final removed = all.removeAt(index);
+    await _saveNotifications(all);
+    return {
+      'success': true,
+      'message': 'Notification deleted',
+      'notification': removed,
+    };
   }
 
   // ---------- sample data ----------
