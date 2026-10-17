@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 const BloodRequest = require("../models/BloodRequest");
 const Donor = require("../models/Donor");
+const Notification = require("../models/Notification");
 
 const {
   getCompatibleBloodGroups
@@ -122,8 +123,7 @@ const createBloodRequest = async (req, res) => {
       });
     }
 
-    const normalizedBloodGroup =
-      bloodGroup.trim().toUpperCase();
+    const normalizedBloodGroup = bloodGroup.trim().toUpperCase();
 
     const normalizedCity = city.trim();
 
@@ -199,8 +199,7 @@ const createBloodRequest = async (req, res) => {
         });
       }
 
-      if (
-        patient.weightKg !== undefined &&
+      if ( patient.weightKg !== undefined &&
         (
           typeof patient.weightKg !== "number" ||
           !Number.isFinite(patient.weightKg) ||
@@ -343,6 +342,79 @@ const createBloodRequest = async (req, res) => {
           : null,
       predictedUrgency
     });
+
+    // Create notifications for matching donors.
+    try {
+      const compatibleGroups =
+        getCompatibleBloodGroups(normalizedBloodGroup);
+
+      const safeCityRegex = new RegExp(
+        `^${escapeRegex(normalizedCity)}$`,
+        "i"
+      );
+
+      const matchingDonors = await Donor.find({
+        bloodGroup: { $in: compatibleGroups },
+        city: { $regex: safeCityRegex },
+        available: true,
+        user: { $ne: req.user.id }
+      }).select("_id user lastDonationDate totalDonations");
+
+      // Exclude donors who donated within the previous 90 days.
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - 90);
+
+      const eligibleDonors = matchingDonors.filter((donor) => {
+        const totalDonations = donor.totalDonations ?? 0;
+
+        if (totalDonations === 0) {
+          return !donor.lastDonationDate;
+        }
+
+        if (!donor.lastDonationDate) {
+          return false;
+        }
+
+        const lastDonation = new Date(donor.lastDonationDate);
+
+        return (
+          !Number.isNaN(lastDonation.getTime()) &&
+          lastDonation <= cutoffDate
+        );
+      });
+
+      const notificationDocuments = eligibleDonors
+        .filter((donor) => donor.user)
+        .map((donor) => ({
+          userId: donor.user,
+          title:
+            (normalizedUrgency || "normal") === "emergency"
+              ? "Emergency Blood Request"
+              : "New Blood Request",
+          message:
+            `${normalizedBloodGroup} blood required in ${normalizedCity}. ` +
+            `Units required: ${units}. ` +
+            `Urgency: ${normalizedUrgency || "normal"}.`,
+          type:
+            (normalizedUrgency || "normal") === "emergency"
+              ? "emergency"
+              : "blood_request",
+          relatedRequest: bloodRequest._id
+        }));
+
+      if (notificationDocuments.length > 0) {
+        await Notification.insertMany(notificationDocuments);
+      }
+
+      console.log(
+        `Created ${notificationDocuments.length} donor notifications`
+      );
+    } catch (notificationError) {
+      console.error(
+        "Create donor notifications error:",
+        notificationError.message
+      );
+    }
 
     return res.status(201).json({
       success: true,

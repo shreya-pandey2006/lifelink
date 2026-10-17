@@ -9,6 +9,7 @@ const bloodRequestRoutes = require("./routes/bloodRequestRoutes");
 const donorResponseRoutes = require("./routes/donorResponseRoutes");
 const mlRoutes = require("./routes/mlRoutes");
 const adminRoutes = require("./routes/adminRoutes");
+const notificationRoutes = require("./routes/notificationRoutes");
 
 const app = express();
 
@@ -41,6 +42,7 @@ app.use("/api/requests", bloodRequestRoutes);
 app.use("/api/responses", donorResponseRoutes);
 app.use("/api/ml", mlRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 app.get("/", (req, res) => {
     res.json({
