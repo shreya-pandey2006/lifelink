@@ -9,6 +9,7 @@ import '../../services/api_client.dart';
 import '../../widgets/ui.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../services/location_service.dart';
+import '../../services/ml_service.dart';
 import '../../widgets/location_card.dart';
 const _groupHints = {
   'A+': 'Eligible','A-': 'Rare', 'B+': 'Eligible', 'B-': 'Rare', 'AB+': 'Universal Rec.', 'AB-': 'Crit. Rare',  'O+': 'High Need', 'O-': 'Universal',
@@ -40,6 +41,66 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
   final _patientRequiredHours = TextEditingController(text: '4');
   bool _patientBleeding = true;
   final bool _patientTransfusions = false;
+  bool _predictingUrgency = false;
+  String? _predictedAiBadge;
+
+  Future<void> _runAiPrediction() async {
+    final ageVal = int.tryParse(_patientAge.text.trim());
+    final weightVal =
+        double.tryParse(_patientWeight.text.trim().replaceAll(',', '.'));
+    final hbVal =
+        double.tryParse(_patientHemoglobin.text.trim().replaceAll(',', '.'));
+    final hrsVal = int.tryParse(_patientRequiredHours.text.trim());
+
+    if (ageVal == null ||
+        weightVal == null ||
+        _bloodGroup == null ||
+        _city == null) {
+      _toast(
+          'Please select blood group, city, age, and weight to run AI assessment.');
+      return;
+    }
+
+    setState(() {
+      _predictingUrgency = true;
+      _predictedAiBadge = null;
+    });
+
+    final res = await MlService.instance.predictUrgency(
+      age: ageVal,
+      gender: _patientGender.toLowerCase(),
+      weightKg: weightVal,
+      bloodGroup: _bloodGroup!,
+      city: _city!,
+      healthIssue: _patientHealthIssue,
+      hemoglobinGDl: hbVal,
+      unitsRequired: _units,
+      requiredWithinHours: hrsVal,
+      activeBleeding: _patientBleeding,
+      previousTransfusions: _patientTransfusions,
+    );
+
+    if (!mounted) return;
+    setState(() => _predictingUrgency = false);
+
+    if (res != null && res.predictedUrgency != null) {
+      final p = res.predictedUrgency!.toLowerCase();
+      setState(() {
+        _predictedAiBadge = res.predictedUrgency!.toUpperCase();
+        if (p == 'emergency') {
+          _urgency = 3;
+        } else if (p == 'urgent') {
+          _urgency = 2;
+        } else {
+          _urgency = 1;
+        }
+      });
+      _toast('AI assessed urgency: ${_predictedAiBadge!}');
+    } else {
+      _toast(
+          'AI service unavailable right now. Urgency can be selected manually.');
+    }
+  }
 
   @override
   void initState() {
@@ -471,6 +532,37 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
                   style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
               value: _patientBleeding,
               onChanged: (v) => setState(() => _patientBleeding = v ?? false),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                icon: _predictingUrgency
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: kPrimary),
+                      )
+                    : const Icon(Icons.auto_awesome,
+                        size: 18, color: kPrimary),
+                label: Text(
+                  _predictingUrgency
+                      ? 'Analyzing with AI...'
+                      : (_predictedAiBadge != null
+                          ? 'AI Assessed: $_predictedAiBadge'
+                          : 'Assess Urgency with AI'),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w700, color: kPrimary),
+                ),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: kPrimary),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+                onPressed: _predictingUrgency ? null : _runAiPrediction,
+              ),
             ),
           ],
         ],

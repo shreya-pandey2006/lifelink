@@ -76,31 +76,57 @@ class ApiClient {
     }
     final uri = Uri.parse('$cleanBase$cleanPath');
     final encoded = body == null ? null : jsonEncode(body);
-    try {
-      final res = await _request(method, uri, encoded)
-          .timeout(const Duration(seconds: 60));
-      if (kDebugMode) {
-        debugPrint('[API] $method $path -> ${res.statusCode}\n${res.body}');
-      }
-      dynamic data;
-      if (res.body.isNotEmpty) {
-        try {
-          data = jsonDecode(res.body);
-        } on FormatException {
-          if (res.statusCode >= 200 && res.statusCode < 300) {
-            throw ApiException('The server sent an unexpected response.');
+    int attempts = 0;
+    while (attempts < 2) {
+      attempts++;
+      try {
+        final res = await _request(method, uri, encoded)
+            .timeout(const Duration(seconds: 45));
+        if (kDebugMode) {
+          debugPrint('[API] $method $path -> ${res.statusCode}\n${res.body}');
+        }
+        if ((res.statusCode == 502 ||
+                res.statusCode == 503 ||
+                res.statusCode == 504) &&
+            attempts < 2) {
+          await Future.delayed(const Duration(milliseconds: 1500));
+          continue;
+        }
+        dynamic data;
+        if (res.body.isNotEmpty) {
+          try {
+            data = jsonDecode(res.body);
+          } on FormatException {
+            if (res.statusCode >= 200 && res.statusCode < 300) {
+              throw ApiException('The server sent an unexpected response.');
+            }
           }
         }
+        if (res.statusCode >= 200 && res.statusCode < 300) return data;
+        if (res.statusCode == 401 && token != null) onUnauthorized?.call();
+        throw ApiException(_errorMessage(data, res.statusCode), res.statusCode);
+      } on SocketException {
+        if (attempts < 2) {
+          await Future.delayed(const Duration(milliseconds: 1500));
+          continue;
+        }
+        throw ApiException(
+            'Cannot reach the server. Check your internet connection.');
+      } on http.ClientException {
+        if (attempts < 2) {
+          await Future.delayed(const Duration(milliseconds: 1500));
+          continue;
+        }
+        throw ApiException(
+            'Cannot reach the server. Check your internet connection.');
+      } on TimeoutException {
+        if (attempts < 2) {
+          await Future.delayed(const Duration(milliseconds: 1500));
+          continue;
+        }
+        throw ApiException(
+            'The server is waking up. Please try again in a moment.');
       }
-      if (res.statusCode >= 200 && res.statusCode < 300) return data;
-      if (res.statusCode == 401 && token != null) onUnauthorized?.call();
-      throw ApiException(_errorMessage(data, res.statusCode), res.statusCode);
-    } on SocketException {
-      throw ApiException('Cannot reach the server. Check your internet connection.');
-    } on http.ClientException {
-      throw ApiException('Cannot reach the server. Check your internet connection.');
-    } on TimeoutException {
-      throw ApiException('The server is waking up. Please try again in a moment.');
     }
   }
 }
