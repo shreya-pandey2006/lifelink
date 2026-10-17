@@ -65,24 +65,58 @@ class _DonationTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final Pill pill;
     switch (d.status) {
-      case 'fulfilled': pill = const Pill('COMPLETED', background: Color(0xFFE3F4E8), foreground: Color(0xFF1E7A3C));
-      case 'cancelled': pill = const Pill('CANCELLED', background: Color(0xFFEFEBF0), foreground: kMuted);
-      default: pill = const Pill('ACCEPTED');
+      case 'fulfilled':
+        pill = const Pill('COMPLETED',
+            background: Color(0xFFE3F4E8), foreground: Color(0xFF1E7A3C));
+      case 'cancelled':
+        pill = const Pill('CANCELLED',
+            background: Color(0xFFEFEBF0), foreground: kMuted);
+      case 'declined':
+        pill = const Pill('DECLINED',
+            background: Color(0xFFFDE8E8), foreground: Color(0xFFC81E1E));
+      default:
+        pill = const Pill('ACCEPTED');
     }
-    return AppCard( padding: const EdgeInsets.all(14),
-      child: Row( children: [
-          Container( width: 54, height: 54, alignment: Alignment.center,
-            decoration: BoxDecoration( color: kPrimarySoft, borderRadius: BorderRadius.circular(16)),
-            child: Text(d.bloodGroup, style: const TextStyle( fontSize: 18, fontWeight: FontWeight.w800, color: kPrimaryDark)),
+    return AppCard(
+      padding: const EdgeInsets.all(14),
+      child: Row(
+        children: [
+          Container(
+            width: 54,
+            height: 54,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+                color: kPrimarySoft, borderRadius: BorderRadius.circular(16)),
+            child: Text(d.bloodGroup,
+                style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: kPrimaryDark)),
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: Column( crossAxisAlignment: CrossAxisAlignment.start,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(d.hospitalName, style: const TextStyle( fontSize: 15.5, fontWeight: FontWeight.w800, color: kInk)),
+                Text(d.hospitalName,
+                    style: const TextStyle(
+                        fontSize: 15.5,
+                        fontWeight: FontWeight.w800,
+                        color: kInk)),
                 const SizedBox(height: 2),
-                Text( '${d.city} \u2022 ${d.units} ${d.units == 1 ? 'unit' : 'units'} \u2022 ${timeAgo(d.date)}',
+                Text(
+                    '${d.city} \u2022 ${d.units} ${d.units == 1 ? 'unit' : 'units'} \u2022 ${timeAgo(d.date)}',
                     style: const TextStyle(fontSize: 12, color: kMuted)),
+                if (d.message != null && d.message!.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text('Note: ${d.message!}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          fontSize: 11,
+                          fontStyle: FontStyle.italic,
+                          color: kInk)),
+                ],
               ],
             ),
           ),

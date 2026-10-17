@@ -277,9 +277,21 @@ class _PotentialDonorsSheetState extends State<_PotentialDonorsSheet> {
                           fontWeight: FontWeight.w800,
                           color: kInk),
                     ),
-                    Text(
-                      '${r.units} units required in ${r.city}',
-                      style: const TextStyle(fontSize: 13, color: kMuted),
+                    Row(
+                      children: [
+                        Text(
+                          '${r.units} units required in ${r.city}',
+                          style: const TextStyle(fontSize: 13, color: kMuted),
+                        ),
+                        if (r.predictedUrgency != null) ...[
+                          const SizedBox(width: 8),
+                          Pill(
+                            'AI: ${r.predictedUrgency!.toUpperCase()}',
+                            background: const Color(0xFFFFEBEE),
+                            foreground: const Color(0xFFC62828),
+                          ),
+                        ],
+                      ],
                     ),
                   ],
                 ),
@@ -296,7 +308,7 @@ class _PotentialDonorsSheetState extends State<_PotentialDonorsSheet> {
           ),
           const SizedBox(height: 4),
           const Text(
-            'Compatible donors in this city who meet donation eligibility criteria.',
+            'Compatible donors in this city ranked by response likelihood.',
             style: TextStyle(fontSize: 12, color: kMuted),
           ),
           const SizedBox(height: 12),
@@ -379,14 +391,21 @@ class _PotentialDonorsSheetState extends State<_PotentialDonorsSheet> {
                                           fontSize: 14),
                                     ),
                                     const Spacer(),
-                                    const Pill('READY TO DONATE',
-                                        background: Color(0xFFE8F5E9),
-                                        foreground: Color(0xFF2E7D32)),
+                                    if (d.responseProbability != null)
+                                      Pill(
+                                        '${(d.responseProbability! * 100).toStringAsFixed(0)}% MATCH',
+                                        background: const Color(0xFFE8F5E9),
+                                        foreground: const Color(0xFF2E7D32),
+                                      )
+                                    else
+                                      const Pill('READY TO DONATE',
+                                          background: Color(0xFFE8F5E9),
+                                          foreground: Color(0xFF2E7D32)),
                                   ],
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  '${d.city} • Total donations: ${d.totalDonations}',
+                                  '${d.city} • Total donations: ${d.totalDonations}${d.age != null ? ' • ${d.age} yrs' : ''}',
                                   style: const TextStyle(
                                       fontSize: 12, color: kMuted),
                                 ),

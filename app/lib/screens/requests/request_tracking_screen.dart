@@ -158,7 +158,14 @@ class _RequestTrackingScreenState extends State<RequestTrackingScreen> {
                     Wrap(
                       spacing: 6,
                       runSpacing: 6,
-                      children: [UrgencyPill(r.urgency), StatusChip(r.status)],
+                      children: [
+                        UrgencyPill(r.urgency),
+                        StatusChip(r.status),
+                        if (r.predictedUrgency != null)
+                          Pill('AI: ${r.predictedUrgency!.toUpperCase()}',
+                              background: const Color(0xFFFFEBEE),
+                              foreground: const Color(0xFFC62828)),
+                      ],
                     ),
                     const SizedBox(height: 8),
                     Text(r.hospitalName,

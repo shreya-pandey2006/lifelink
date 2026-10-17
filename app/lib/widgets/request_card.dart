@@ -28,7 +28,8 @@ class RequestCard extends StatelessWidget {
                       Text(r.hospitalName, maxLines: 1, overflow: TextOverflow.ellipsis,
                           style: const TextStyle( fontSize: 16, fontWeight: FontWeight.w800, color: kInk)),
                       const SizedBox(height: 2),
-                      Text( '${r.city} \u2022 ${kUrgencyLabels[r.urgency] ?? 'Urgent'} \u2022 ${timeAgo(r.createdAt)}',
+                      Text(
+                          '${r.city} \u2022 ${kUrgencyLabels[r.urgency] ?? 'Urgent'}${r.predictedUrgency != null ? ' (AI: ${r.predictedUrgency})' : ''} \u2022 ${timeAgo(r.createdAt)}',
                           style: const TextStyle(fontSize: 12, color: kMuted)),
                     ],
                   ),

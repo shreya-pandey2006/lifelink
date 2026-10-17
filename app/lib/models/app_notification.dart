@@ -1,6 +1,6 @@
 class AppNotification {
   final String id;
-  final String type; // alert | accepted | declined | matched | fulfilled | cancelled
+  final String type;
   final String title;
   final String message;
   final String? requestId;

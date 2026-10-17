@@ -19,7 +19,7 @@ class BloodAlertsScreen extends StatefulWidget {
 }
 
 class _BloodAlertsScreenState extends State<BloodAlertsScreen> {
-  String _filter = 'all'; // all | critical | urgent
+  String _filter = 'all';
   String? _busyId;
   Timer? _timer;
 
