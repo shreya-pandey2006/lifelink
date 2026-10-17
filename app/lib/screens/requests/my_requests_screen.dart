@@ -115,8 +115,23 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
                       padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
                       itemCount: shown.length,
                       separatorBuilder: (_, _) => const SizedBox(height: 14),
-                      itemBuilder: (_, i) => RequestCard( shown[i],
-                        onTap: () => context.push('/request/${shown[i].id}'),
+                      itemBuilder: (_, i) => Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          RequestCard(
+                            shown[i],
+                            onTap: () => context.push('/request/${shown[i].id}'),
+                          ),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: TextButton.icon(
+                              onPressed: () => _showPotentialDonors(shown[i]),
+                              icon: const Icon(Icons.people_outline, size: 16),
+                              label: const Text('Matching Donors',
+                                  style: TextStyle(fontSize: 12)),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
             ),

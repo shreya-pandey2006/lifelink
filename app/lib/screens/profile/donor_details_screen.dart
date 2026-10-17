@@ -51,11 +51,12 @@ class _DonorDetailsScreenState extends State<DonorDetailsScreen> {
       _saving = true;
       _error = null;
     });
+    final daysText = _days.text.trim();
     final error = await context.read<DonorProvider>().saveHealth(
           age: int.parse(_age.text.trim()),
           weight: double.parse(_weight.text.trim().replaceAll(',', '.')),
           hemoglobin: double.parse(_hemoglobin.text.trim().replaceAll(',', '.')),
-          daysSinceLastDonation: int.parse(_days.text.trim()),
+          daysSinceLastDonation: daysText.isEmpty ? null : int.tryParse(daysText),
         );
     if (!mounted) return;
     setState(() => _saving = false);
@@ -95,29 +96,30 @@ class _DonorDetailsScreenState extends State<DonorDetailsScreen> {
                   controller: _age,
                   keyboardType: TextInputType.number,
                   decoration: fieldDecoration(
-                      hint: 'e.g. 25', icon: Icons.cake_outlined),
-                  validator: (v) => _number(v, 16, 100, 'Age'),
+                      hint: 'e.g. 25 (18–100)', icon: Icons.cake_outlined),
+                  validator: (v) => _number(v, 18, 100, 'Age'),
                 ),
                 const SizedBox(height: 16),
                 const FieldLabel('Weight (kg)'),
                 TextFormField(
                   controller: _weight,
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: fieldDecoration( hint: 'e.g. 68', icon: Icons.monitor_weight_outlined),
-                  validator: (v) => _number(v, 30, 250, 'Weight'),
+                  decoration: fieldDecoration( hint: 'e.g. 68.5 (30–300 kg)', icon: Icons.monitor_weight_outlined),
+                  validator: (v) => _number(v, 30, 300, 'Weight'),
                 ),
                 const SizedBox(height: 16),
                 const FieldLabel('Hemoglobin (g/dL)'),
                 TextFormField( controller: _hemoglobin,
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: fieldDecoration( hint: 'e.g. 14.2', icon: Icons.water_drop_outlined),
-                  validator: (v) => _number(v, 5, 22, 'Hemoglobin'),
+                  decoration: fieldDecoration( hint: 'e.g. 14.2 (3–25 g/dL)', icon: Icons.water_drop_outlined),
+                  validator: (v) => _number(v, 3, 25, 'Hemoglobin'),
                 ),
                 const SizedBox(height: 16),
-                const FieldLabel('Days since your last donation'),
+                const FieldLabel('Days since your last donation (optional)'),
                 TextFormField( controller: _days, keyboardType: TextInputType.number,
-                  decoration: fieldDecoration( hint: 'e.g. 100 (use a large number if never)',
-                      icon: Icons.event_outlined), validator: (v) => _number(v, 0, 20000, 'Days'),
+                  decoration: fieldDecoration( hint: 'e.g. 100 (leave blank if never donated)',
+                      icon: Icons.event_outlined),
+                  validator: (v) => (v == null || v.trim().isEmpty) ? null : _number(v, 0, 20000, 'Days'),
                 ),
                 if (_error != null) ...[
                   const SizedBox(height: 12),

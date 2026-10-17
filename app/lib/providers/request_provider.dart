@@ -18,7 +18,6 @@ class RequestProvider extends ChangeNotifier {
     }
     try {
       final data = await ApiClient.instance.get('/requests');
-      // Backend returns: { success: true, totalRequests: N, bloodRequests: [...] }
       final list = extractList(data, ['bloodRequests', 'requests']);
       requests = list
           .map((e) => BloodRequest.fromJson(asMap(e)))
@@ -111,6 +110,25 @@ class RequestProvider extends ChangeNotifier {
         'age': age,
         'weightKg': weightKg,
         'hemoglobinGDl': hemoglobinGDl,
+      });
+      return null;
+    } on ApiException catch (e) {
+      return e.message;
+    } catch (_) {
+      return 'Something went wrong. Please try again.';
+    }
+  }
+
+  Future<String?> respondToRequest(
+    String requestId, {
+    required bool accept,
+    String? message,
+  }) async {
+    try {
+      await ApiClient.instance.post('/responses/$requestId', {
+        'status': accept ? 'accepted' : 'declined',
+        if (message != null && message.trim().isNotEmpty)
+          'message': message.trim(),
       });
       return null;
     } on ApiException catch (e) {

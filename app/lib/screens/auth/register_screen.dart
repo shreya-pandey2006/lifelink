@@ -70,8 +70,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
       _loading = true;
       _error = null;
     });
+    final cleanPhone = _phone.text.replaceAll(RegExp(r'[\s\-()]'), '');
+    final phoneToSend = cleanPhone.startsWith('+') ? cleanPhone : '+91$cleanPhone';
     final error = await context.read<AuthProvider>().register(
-          name: _name.text, email: _email.text, password: _password.text, phone: _phone.text, city: _city!, role: _role, bloodGroup: _role == 'donor' ? _bloodGroup : null,
+          name: _name.text.trim(),
+          email: _email.text.trim(),
+          password: _password.text,
+          phone: phoneToSend,
+          city: _city!,
+          role: _role,
+          bloodGroup: _role == 'donor' ? _bloodGroup : null,
         );
     if (!mounted) return;
     setState(() {

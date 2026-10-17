@@ -58,6 +58,7 @@ class ApiClient {
       }
     }
     if (status == 403) return "You don't have permission to do this.";
+    if (status == 502) return "The upstream service is temporarily unavailable. Please try again.";
     return 'Request failed ($status)';
   }
 
@@ -69,7 +70,10 @@ class ApiClient {
     final cleanBase = kBaseUrl.endsWith('/')
         ? kBaseUrl.substring(0, kBaseUrl.length - 1)
         : kBaseUrl;
-    final cleanPath = path.startsWith('/') ? path : '/$path';
+    var cleanPath = path.startsWith('/') ? path : '/$path';
+    if (cleanBase.endsWith('/api') && cleanPath.startsWith('/api/')) {
+      cleanPath = cleanPath.substring(4);
+    }
     final uri = Uri.parse('$cleanBase$cleanPath');
     final encoded = body == null ? null : jsonEncode(body);
     try {
