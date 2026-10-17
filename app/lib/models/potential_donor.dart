@@ -9,6 +9,7 @@ class PotentialDonor {
   final double? weightKg;
   final double? hemoglobinGDl;
   final int totalDonations;
+  final double? responseProbability;
 
   const PotentialDonor({
     required this.id,
@@ -21,6 +22,7 @@ class PotentialDonor {
     this.weightKg,
     this.hemoglobinGDl,
     this.totalDonations = 0,
+    this.responseProbability,
   });
 
   factory PotentialDonor.fromJson(Map<String, dynamic> j) => PotentialDonor(
@@ -29,14 +31,22 @@ class PotentialDonor {
         bloodGroup: (j['bloodGroup'] ?? '').toString(),
         city: (j['city'] ?? '').toString(),
         available: j['available'] != false,
-        lastDonationDate: DateTime.tryParse((j['lastDonationDate'] ?? '').toString())?.toLocal(),
-        age: j['age'] is num ? (j['age'] as num).toInt() : int.tryParse('${j['age']}'),
-        weightKg: j['weightKg'] is num ? (j['weightKg'] as num).toDouble() : double.tryParse('${j['weightKg']}'),
+        lastDonationDate:
+            DateTime.tryParse((j['lastDonationDate'] ?? '').toString())?.toLocal(),
+        age: j['age'] is num
+            ? (j['age'] as num).toInt()
+            : int.tryParse('${j['age']}'),
+        weightKg: j['weightKg'] is num
+            ? (j['weightKg'] as num).toDouble()
+            : double.tryParse('${j['weightKg']}'),
         hemoglobinGDl: j['hemoglobinGDl'] is num
             ? (j['hemoglobinGDl'] as num).toDouble()
             : double.tryParse('${j['hemoglobinGDl']}'),
         totalDonations: j['totalDonations'] is num
             ? (j['totalDonations'] as num).toInt()
             : (int.tryParse('${j['totalDonations']}') ?? 0),
+        responseProbability: j['responseProbability'] is num
+            ? (j['responseProbability'] as num).toDouble()
+            : double.tryParse('${j['responseProbability']}'),
       );
 }

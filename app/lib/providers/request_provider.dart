@@ -10,19 +10,18 @@ class RequestProvider extends ChangeNotifier {
   bool loading = false;
   String? error;
 
-  Future<void> load({bool silent = false}) async {
+  Future<void> load(
+      {bool silent = false, int page = 1, int limit = 20}) async {
     if (!silent) {
       loading = true;
       error = null;
       notifyListeners();
     }
     try {
-      final data = await ApiClient.instance.get('/requests');
-      // Backend returns: { success: true, totalRequests: N, bloodRequests: [...] }
+      final data =
+          await ApiClient.instance.get('/requests?page=$page&limit=$limit');
       final list = extractList(data, ['bloodRequests', 'requests']);
-      requests = list
-          .map((e) => BloodRequest.fromJson(asMap(e)))
-          .toList();
+      requests = list.map((e) => BloodRequest.fromJson(asMap(e))).toList();
       error = null;
     } on ApiException catch (e) {
       error = e.message;
@@ -50,18 +49,21 @@ class RequestProvider extends ChangeNotifier {
     required String hospitalName,
     required String city,
     required int urgency,
+    Map<String, dynamic>? patient,
     double? lat,
     double? lng,
   }) async {
-    final data = await ApiClient.instance.post('/requests', {
+    final body = <String, dynamic>{
       'bloodGroup': bloodGroup,
       'city': city.trim(),
       'units': units,
       'urgency': mapUrgency(urgency),
       if (hospitalName.trim().isNotEmpty) 'hospital': hospitalName.trim(),
+      if (patient != null && patient.isNotEmpty) 'patient': patient,
       'lat': ?lat,
       'lng': ?lng,
-    });
+    };
+    final data = await ApiClient.instance.post('/requests', body);
     final map = extractMap(data, ['bloodRequest', 'request']);
     final request = BloodRequest.fromJson(map);
     requests = [request, ...requests];
@@ -69,9 +71,11 @@ class RequestProvider extends ChangeNotifier {
     return request;
   }
 
-  Future<List<PotentialDonor>> getPotentialDonors(String requestId) async {
+  Future<List<PotentialDonor>> getPotentialDonors(String requestId,
+      {int page = 1, int limit = 20}) async {
     try {
-      final data = await ApiClient.instance.get('/requests/$requestId/potential-donors');
+      final data = await ApiClient.instance
+          .get('/requests/$requestId/potential-donors?page=$page&limit=$limit');
       final list = extractList(data, ['potentialDonors']);
       return list.map((e) => PotentialDonor.fromJson(asMap(e))).toList();
     } on ApiException {
@@ -111,6 +115,25 @@ class RequestProvider extends ChangeNotifier {
         'age': age,
         'weightKg': weightKg,
         'hemoglobinGDl': hemoglobinGDl,
+      });
+      return null;
+    } on ApiException catch (e) {
+      return e.message;
+    } catch (_) {
+      return 'Something went wrong. Please try again.';
+    }
+  }
+
+  Future<String?> respondToRequest(
+    String requestId, {
+    required bool accept,
+    String? message,
+  }) async {
+    try {
+      await ApiClient.instance.post('/responses/$requestId', {
+        'status': accept ? 'accepted' : 'declined',
+        if (message != null && message.trim().isNotEmpty)
+          'message': message.trim(),
       });
       return null;
     } on ApiException catch (e) {

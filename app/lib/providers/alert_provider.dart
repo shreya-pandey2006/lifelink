@@ -20,17 +20,26 @@ class AlertProvider extends ChangeNotifier {
           .toList();
       error = null;
     } on ApiException catch (e) {
-      error = e.message;
+      if (e.statusCode == 404) {
+        alerts = [];
+        error = null;
+      } else {
+        error = e.message;
+      }
     } catch (_) {
       error = 'Something went wrong. Please try again.';
     }
     loading = false;
     notifyListeners();
   }
-  Future<String?> respond(String requestId, bool accept) async {
+
+  Future<String?> respond(String requestId, bool accept, {String? message}) async {
     try {
-      await ApiClient.instance
-          .post('/responses/$requestId/${accept ? 'accept' : 'decline'}');
+      await ApiClient.instance.post('/responses/$requestId', {
+        'status': accept ? 'accepted' : 'declined',
+        if (message != null && message.trim().isNotEmpty)
+          'message': message.trim(),
+      });
       alerts = alerts.where((a) => a.requestId != requestId).toList();
       notifyListeners();
       return null;

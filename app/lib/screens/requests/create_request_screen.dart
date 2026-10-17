@@ -9,6 +9,7 @@ import '../../services/api_client.dart';
 import '../../widgets/ui.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../services/location_service.dart';
+import '../../services/ml_service.dart';
 import '../../widgets/location_card.dart';
 const _groupHints = {
   'A+': 'Eligible','A-': 'Rare', 'B+': 'Eligible', 'B-': 'Rare', 'AB+': 'Universal Rec.', 'AB-': 'Crit. Rare',  'O+': 'High Need', 'O-': 'Universal',
@@ -31,17 +32,93 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
   String? _error;
   LatLng? _pin;
   bool _locating = false;
+  bool _includePatient = false;
+  final _patientAge = TextEditingController();
+  final _patientWeight = TextEditingController();
+  String _patientGender = 'Male';
+  String _patientHealthIssue = 'Accident / Trauma';
+  final _patientHemoglobin = TextEditingController();
+  final _patientRequiredHours = TextEditingController(text: '4');
+  bool _patientBleeding = true;
+  final bool _patientTransfusions = false;
+  bool _predictingUrgency = false;
+  String? _predictedAiBadge;
+
+  Future<void> _runAiPrediction() async {
+    final ageVal = int.tryParse(_patientAge.text.trim());
+    final weightVal =
+        double.tryParse(_patientWeight.text.trim().replaceAll(',', '.'));
+    final hbVal =
+        double.tryParse(_patientHemoglobin.text.trim().replaceAll(',', '.'));
+    final hrsVal = int.tryParse(_patientRequiredHours.text.trim());
+
+    if (ageVal == null ||
+        weightVal == null ||
+        _bloodGroup == null ||
+        _city == null) {
+      _toast(
+          'Please select blood group, city, age, and weight to run AI assessment.');
+      return;
+    }
+
+    setState(() {
+      _predictingUrgency = true;
+      _predictedAiBadge = null;
+    });
+
+    final res = await MlService.instance.predictUrgency(
+      age: ageVal,
+      gender: _patientGender.toLowerCase(),
+      weightKg: weightVal,
+      bloodGroup: _bloodGroup!,
+      city: _city!,
+      healthIssue: _patientHealthIssue,
+      hemoglobinGDl: hbVal,
+      unitsRequired: _units,
+      requiredWithinHours: hrsVal,
+      activeBleeding: _patientBleeding,
+      previousTransfusions: _patientTransfusions,
+    );
+
+    if (!mounted) return;
+    setState(() => _predictingUrgency = false);
+
+    if (res != null && res.predictedUrgency != null) {
+      final p = res.predictedUrgency!.toLowerCase();
+      setState(() {
+        _predictedAiBadge = res.predictedUrgency!.toUpperCase();
+        if (p == 'emergency') {
+          _urgency = 3;
+        } else if (p == 'urgent') {
+          _urgency = 2;
+        } else {
+          _urgency = 1;
+        }
+      });
+      _toast('AI assessed urgency: ${_predictedAiBadge!}');
+    } else {
+      _toast(
+          'AI service unavailable right now. Urgency can be selected manually.');
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     final userCity = context.read<AuthProvider>().user?.city;
     if (userCity != null && kCities.contains(userCity)) _city = userCity;
   }
+
   @override
   void dispose() {
     _hospital.dispose();
+    _patientAge.dispose();
+    _patientWeight.dispose();
+    _patientHemoglobin.dispose();
+    _patientRequiredHours.dispose();
     super.dispose();
   }
+
   String get _groupInfo {
     final g = _bloodGroup;
     if (g == null) return 'Select the blood group the patient needs.';
@@ -50,13 +127,15 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
     }
     return 'Compatible donor groups: ${donorsFor(g).join(', ')}';
   }
-    Future<void> _chooseOnMap() async {
+
+  Future<void> _chooseOnMap() async {
     final result = await context.push<LatLng>(
       '/pick-location',
       extra: {'pin': _pin, 'city': _city},
     );
     if (result != null && mounted) setState(() => _pin = result);
   }
+
   Future<void> _useGps() async {
     setState(() => _locating = true);
     try {
@@ -70,10 +149,12 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
       if (mounted) setState(() => _locating = false);
     }
   }
+
   void _toast(String text) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
   }
+
   Future<void> _submit() async {
     final formOk = _formKey.currentState!.validate();
     setState(() => _groupError = _bloodGroup == null);
@@ -82,13 +163,43 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
       _loading = true;
       _error = null;
     });
+
+    Map<String, dynamic>? patientData;
+    if (_includePatient) {
+      final ageVal = int.tryParse(_patientAge.text.trim());
+      final weightVal =
+          double.tryParse(_patientWeight.text.trim().replaceAll(',', '.'));
+      final hbVal =
+          double.tryParse(_patientHemoglobin.text.trim().replaceAll(',', '.'));
+      final hrsVal = int.tryParse(_patientRequiredHours.text.trim());
+      patientData = {
+        'age': ?ageVal,
+        'gender': _patientGender,
+        'weightKg': ?weightVal,
+        'healthIssue': _patientHealthIssue,
+        'hemoglobinGDl': ?hbVal,
+        'requiredWithinHours': ?hrsVal,
+        'activeBleeding': _patientBleeding,
+        'previousTransfusions': _patientTransfusions,
+      };
+    }
+
     try {
-      await context.read<RequestProvider>().create( bloodGroup: _bloodGroup!, units: _units, 
-      hospitalName: _hospital.text, city: _city!, urgency: _urgency, lat: _pin?.latitude, lng: _pin?.longitude,
+      final req = await context.read<RequestProvider>().create(
+            bloodGroup: _bloodGroup!,
+            units: _units,
+            hospitalName: _hospital.text,
+            city: _city!,
+            urgency: _urgency,
+            patient: patientData,
+            lat: _pin?.latitude,
+            lng: _pin?.longitude,
           );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Request posted. Matching donors are being alerted.')));
+      final msg = req.predictedUrgency != null
+          ? 'Request posted. AI predicted urgency: ${req.predictedUrgency}. Donors are being notified.'
+          : 'Request posted. Matching donors are being alerted.';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
       context.pop();
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = e.message);
@@ -100,31 +211,50 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
       if (mounted) setState(() => _loading = false);
     }
   }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: kBackground, surfaceTintColor: Colors.transparent,
+        backgroundColor: kBackground,
+        surfaceTintColor: Colors.transparent,
         title: const Text('Create Urgent Blood Request',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
-          child: Form( key: _formKey,
+          child: Form(
+            key: _formKey,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _bloodGroupCard(), const SizedBox(height: 16),
-                _unitsCard(), const SizedBox(height: 16),
-                _urgencyCard(), const SizedBox(height: 16),
+                _bloodGroupCard(),
+                const SizedBox(height: 16),
+                _unitsCard(),
+                const SizedBox(height: 16),
+                _urgencyCard(),
+                const SizedBox(height: 16),
                 _facilityCard(),
-                if (_error != null) ...[ const SizedBox(height: 14), Text(_error!, style: const TextStyle(color: Colors.red)) ],
+                const SizedBox(height: 16),
+                _patientCard(),
+                if (_error != null) ...[
+                  const SizedBox(height: 14),
+                  Text(_error!, style: const TextStyle(color: Colors.red))
+                ],
                 const SizedBox(height: 22),
-                PrimaryButton( label: 'Submit Blood Request', icon: Icons.campaign_outlined, loading: _loading, onPressed: _submit ),
+                PrimaryButton(
+                    label: 'Submit Blood Request',
+                    icon: Icons.campaign_outlined,
+                    loading: _loading,
+                    onPressed: _submit),
                 const SizedBox(height: 8),
-                Center( child: TextButton( onPressed: _loading ? null : () => context.pop(),
-                    child: const Text('Cancel', style: TextStyle( color: kMuted, fontWeight: FontWeight.w700)),
+                Center(
+                  child: TextButton(
+                    onPressed: _loading ? null : () => context.pop(),
+                    child: const Text('Cancel',
+                        style: TextStyle(
+                            color: kMuted, fontWeight: FontWeight.w700)),
                   ),
                 ),
               ],
@@ -260,6 +390,181 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
           ),
           const SizedBox(height: 16), const FieldLabel('Hospital Location (recommended)'),
           LocationCard( pin: _pin, busy: _locating, onChooseOnMap: _chooseOnMap, onUseGps: _useGps ),
+        ],
+      ),
+    );
+  }
+
+  Widget _patientCard() {
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.psychology_outlined, color: kPrimaryDark),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text('AI Urgency Assessment (Optional)',
+                    style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: kInk)),
+              ),
+              Switch(
+                value: _includePatient,
+                onChanged: (v) => setState(() => _includePatient = v),
+              ),
+            ],
+          ),
+          if (_includePatient) ...[
+            const SizedBox(height: 12),
+            const Text(
+              'Add patient clinical parameters to run the backend ML urgency prediction model.',
+              style: TextStyle(fontSize: 12, color: kMuted),
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const FieldLabel('Patient Age'),
+                      TextFormField(
+                        controller: _patientAge,
+                        keyboardType: TextInputType.number,
+                        decoration: fieldDecoration(
+                            hint: 'e.g. 34', icon: Icons.cake_outlined),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const FieldLabel('Weight (kg)'),
+                      TextFormField(
+                        controller: _patientWeight,
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
+                        decoration: fieldDecoration(
+                            hint: 'e.g. 72.5',
+                            icon: Icons.monitor_weight_outlined),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            const FieldLabel('Patient Gender'),
+            DropdownButtonFormField<String>(
+              initialValue: _patientGender,
+              decoration: fieldDecoration(icon: Icons.person_outline),
+              items: const [
+                DropdownMenuItem(value: 'Male', child: Text('Male')),
+                DropdownMenuItem(value: 'Female', child: Text('Female')),
+                DropdownMenuItem(value: 'Other', child: Text('Other')),
+              ],
+              onChanged: (v) => setState(() => _patientGender = v ?? 'Male'),
+            ),
+            const SizedBox(height: 12),
+            const FieldLabel('Primary Health Issue / Diagnosis'),
+            DropdownButtonFormField<String>(
+              initialValue: _patientHealthIssue,
+              decoration: fieldDecoration(icon: Icons.medical_services_outlined),
+              items: const [
+                DropdownMenuItem(
+                    value: 'Accident / Trauma',
+                    child: Text('Accident / Trauma')),
+                DropdownMenuItem(value: 'Surgery', child: Text('Surgery')),
+                DropdownMenuItem(
+                    value: 'Anemia / Dengue', child: Text('Anemia / Dengue')),
+                DropdownMenuItem(
+                    value: 'Cancer Care', child: Text('Cancer Care')),
+                DropdownMenuItem(value: 'Other', child: Text('Other')),
+              ],
+              onChanged: (v) =>
+                  setState(() => _patientHealthIssue = v ?? 'Accident / Trauma'),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const FieldLabel('Hemoglobin (g/dL)'),
+                      TextFormField(
+                        controller: _patientHemoglobin,
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
+                        decoration: fieldDecoration(
+                            hint: 'e.g. 9.2', icon: Icons.water_drop_outlined),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const FieldLabel('Needed Within (Hours)'),
+                      TextFormField(
+                        controller: _patientRequiredHours,
+                        keyboardType: TextInputType.number,
+                        decoration: fieldDecoration(
+                            hint: 'e.g. 4', icon: Icons.timer_outlined),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Active bleeding present',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+              value: _patientBleeding,
+              onChanged: (v) => setState(() => _patientBleeding = v ?? false),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                icon: _predictingUrgency
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: kPrimary),
+                      )
+                    : const Icon(Icons.auto_awesome,
+                        size: 18, color: kPrimary),
+                label: Text(
+                  _predictingUrgency
+                      ? 'Analyzing with AI...'
+                      : (_predictedAiBadge != null
+                          ? 'AI Assessed: $_predictedAiBadge'
+                          : 'Assess Urgency with AI'),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w700, color: kPrimary),
+                ),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: kPrimary),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+                onPressed: _predictingUrgency ? null : _runAiPrediction,
+              ),
+            ),
+          ],
         ],
       ),
     );

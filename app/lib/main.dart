@@ -5,16 +5,24 @@ import 'core/theme.dart';
 import 'providers/alert_provider.dart';
 import 'providers/auth_provider.dart';
 import 'providers/donor_provider.dart';
+import 'providers/history_provider.dart';
+import 'providers/notification_provider.dart';
 import 'providers/request_provider.dart';
+import 'providers/tracking_provider.dart';
 import 'router/app_router.dart';
 void main() {
   final auth = AuthProvider()..init();
   final router = buildRouter(auth);
-  runApp( MultiProvider( providers: [
+  runApp(
+    MultiProvider(
+      providers: [
         ChangeNotifierProvider<AuthProvider>.value(value: auth),
         ChangeNotifierProvider(create: (_) => RequestProvider()),
         ChangeNotifierProvider(create: (_) => AlertProvider()),
         ChangeNotifierProvider(create: (_) => DonorProvider()),
+        ChangeNotifierProvider(create: (_) => HistoryProvider()),
+        ChangeNotifierProvider(create: (_) => NotificationProvider()),
+        ChangeNotifierProvider(create: (_) => TrackingProvider()),
       ],
       child: LifeLinkApp(router: router),
     ),

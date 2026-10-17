@@ -5,18 +5,33 @@ class BloodRequest {
   final int unitsAccepted;
   final String hospitalName;
   final String city;
-  final int urgency; 
-  final String status; 
+  final int urgency;
+  final String status;
   final double? lat;
   final double? lng;
+  final String? predictedUrgency;
+  final Map<String, dynamic>? patient;
   final DateTime? createdAt;
+
   const BloodRequest({
-    required this.id, required this.bloodGroup, required this.units,
-    required this.unitsAccepted, required this.hospitalName, required this.city,
-    required this.urgency, required this.status, this.lat, this.lng, this.createdAt,
+    required this.id,
+    required this.bloodGroup,
+    required this.units,
+    required this.unitsAccepted,
+    required this.hospitalName,
+    required this.city,
+    required this.urgency,
+    required this.status,
+    this.lat,
+    this.lng,
+    this.predictedUrgency,
+    this.patient,
+    this.createdAt,
   });
+
   bool get isOpen => status == 'open';
-     factory BloodRequest.fromJson(Map<String, dynamic> j) => BloodRequest(
+
+  factory BloodRequest.fromJson(Map<String, dynamic> j) => BloodRequest(
         id: (j['id'] ?? j['_id'] ?? '').toString(),
         bloodGroup: (j['bloodGroup'] ?? j['blood_group'] ?? '').toString(),
         units: _toInt(j['units'] ?? j['unitsRequired'], 1),
@@ -27,6 +42,10 @@ class BloodRequest {
         status: _status(j['status']),
         lat: _toDouble(j['lat'] ?? j['latitude']),
         lng: _toDouble(j['lng'] ?? j['longitude']),
+        predictedUrgency: j['predictedUrgency']?.toString(),
+        patient: j['patient'] is Map
+            ? Map<String, dynamic>.from(j['patient'] as Map)
+            : null,
         createdAt:
             DateTime.tryParse((j['createdAt'] ?? '').toString())?.toLocal(),
       );
