@@ -760,9 +760,96 @@ const getPotentialDonors = async (req, res) => {
   }
 };
 
+// CANCEL OWN BLOOD REQUEST
+const cancelBloodRequest = async (req, res) => {
+  try {
+    const { requestId } = req.params;
+
+    // Validate MongoDB ObjectId.
+    if (!mongoose.isValidObjectId(requestId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid blood request ID"
+      });
+    }
+
+    // Find the request.
+    const bloodRequest = await BloodRequest.findById(requestId);
+
+    if (!bloodRequest) {
+      return res.status(404).json({
+        success: false,
+        message: "Blood request not found"
+      });
+    }
+
+    // Only the requester who created it can cancel it.
+    if (
+      bloodRequest.requester.toString() !== req.user.id
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "You can only cancel your own blood request"
+      });
+    }
+
+    // Only open or matched requests can be cancelled.
+    if (!["open", "matched"].includes(bloodRequest.status)) {
+      return res.status(409).json({
+        success: false,
+        message:
+          `Cannot cancel a request with status: ${bloodRequest.status}`
+      });
+    }
+
+    // Atomically update only if the status is still cancellable.
+    const cancelledRequest = await BloodRequest.findOneAndUpdate(
+      {
+        _id: requestId,
+        requester: req.user.id,
+        status: { $in: ["open", "matched"] }
+      },
+      {
+        $set: { status: "cancelled" }
+      },
+      {
+        new: true,
+        runValidators: true
+      }
+    );
+
+    // Another operation may have changed the request meanwhile.
+    if (!cancelledRequest) {
+      return res.status(409).json({
+        success: false,
+        message:
+          "Request status changed. Refresh and try again."
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Blood request cancelled successfully",
+      bloodRequest: cancelledRequest
+    });
+  } catch (error) {
+    console.error(
+      "Cancel blood request error:",
+      error.message
+    );
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to cancel blood request"
+    });
+  }
+};
+
+
 module.exports = {
   createBloodRequest,
   getBloodRequests,
   getBloodRequestById,
-  getPotentialDonors
+  getPotentialDonors,
+  cancelBloodRequest
 };

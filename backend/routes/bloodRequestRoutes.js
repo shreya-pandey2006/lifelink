@@ -6,7 +6,8 @@ const {
   createBloodRequest,
   getBloodRequests,
   getPotentialDonors,
-  getBloodRequestById
+  getBloodRequestById,
+  cancelBloodRequest
 } = require("../controllers/bloodRequestController");
 
 const { auth, requireRole } = require("../middleware/authMiddleware");
@@ -41,6 +42,14 @@ router.get(
   auth,
   requireRole("requester", "admin"),
   getPotentialDonors
+);
+
+// Cancel own blood request
+router.patch(
+  "/:requestId/cancel",
+  auth,
+  requireRole("requester"),
+  cancelBloodRequest
 );
 
 module.exports = router;
