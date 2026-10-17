@@ -85,6 +85,7 @@ const validatePagination = (query) => {
 // CREATE BLOOD REQUEST
 const createBloodRequest = async (req, res) => {
   try {
+    console.log("CREATE BLOOD REQUEST API HIT");
     if (!isPlainObject(req.body)) {
       return res.status(400).json({
         success: false,
