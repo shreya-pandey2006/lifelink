@@ -1,347 +1,209 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import '../../core/constants.dart';
 import '../../core/theme.dart';
-import '../../providers/auth_provider.dart';
-import '../../providers/request_provider.dart';
 import '../../providers/alert_provider.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/donor_provider.dart';
+import '../../providers/history_provider.dart';
+import '../../providers/notification_provider.dart';
+import '../../providers/request_provider.dart';
+import '../../providers/tracking_provider.dart';
+import '../../services/location_service.dart';
 import '../../widgets/ui.dart';
-
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
-
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+class _ProfileScreenState extends State<ProfileScreen> {
+  bool _locating = false;
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(() {
+      if (!mounted) return;
+      final user = context.read<AuthProvider>().user;
+      if (user != null && user.isDonor) context.read<DonorProvider>().load();
+    });
+  }
+  void _toast(String text) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+  }
+  Future<void> _updateLocation() async {
+    setState(() => _locating = true);
+    try {
+      final pos = await LocationService.currentPosition();
+      if (!mounted) return;
+      final error = await context
+          .read<DonorProvider>()
+          .updateLocation(pos.latitude, pos.longitude);
+      _toast(error ?? 'Your location was updated.');
+    } on LocationException catch (e) {
+      _toast(e.message);
+    } catch (_) {
+      _toast('Could not read your location. Try again.');
+    } finally {
+      if (mounted) setState(() => _locating = false);
+    }
+  }
+  void _logout() {
+    context.read<RequestProvider>().clear();
+    context.read<AlertProvider>().clear();
+    context.read<DonorProvider>().clear();
+    context.read<TrackingProvider>().clear();
+    context.read<NotificationProvider>().clear();
+    context.read<HistoryProvider>().clear();
+    context.read<AuthProvider>().logout();
+  }
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AuthProvider>().user;
     final donor = context.watch<DonorProvider>();
     if (user == null) return const SizedBox.shrink();
-
+    final group = user.bloodGroup;
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Profile', style: TextStyle(fontWeight: FontWeight.w800)),
-        backgroundColor: kBackground,
-        surfaceTintColor: Colors.transparent,
-      ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 10, 20, 32),
-        children: [
-          AppCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 28,
-                      backgroundColor: kPrimarySoft,
-                      child: Text(
-                        user.name.isEmpty ? '?' : user.name[0].toUpperCase(),
-                        style: const TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.w800,
-                            color: kPrimaryDark),
-                      ),
+      body: SafeArea( child: ListView( padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+          children: [ AppCard(
+              child: Column( children: [ CircleAvatar( radius: 38, backgroundColor: kPrimarySoft,
+                    child: Text( user.name.isEmpty ? '?' : user.name[0].toUpperCase(),
+                        style: const TextStyle( fontSize: 30, fontWeight: FontWeight.w800, color: kPrimaryDark)),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(user.name, style: const TextStyle( fontSize: 22, fontWeight: FontWeight.w800, color: kInk)), const SizedBox(height: 4),
+                  Text(user.email, style: const TextStyle(color: kMuted)),
+                  Text(user.phone, style: const TextStyle(color: kMuted)), const SizedBox(height: 4),
+                  Row( mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.location_on_outlined, size: 16, color: kPrimaryDark), const SizedBox(width: 2),
+                      Text(user.city, style: const TextStyle( color: kInk, fontWeight: FontWeight.w600)),
+                    ],
+                  ),
+                  const SizedBox(height: 12), Pill(user.isDonor ? 'BLOOD DONOR' : 'BLOOD REQUESTER'),
+                ],
+              ),
+            ),
+            if (user.isDonor && group != null) ...[
+              const SizedBox(height: 14),
+              Container( padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration( color: kPrimarySoft, borderRadius: BorderRadius.circular(20)),
+                child: Row(
+                  children: [ const CircleAvatar( radius: 22, backgroundColor: Colors.white, child: Icon(Icons.favorite, color: kPrimaryDark),
                     ),
                     const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                    Expanded( child: Column( crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            user.name,
-                            style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w800,
-                                color: kInk),
-                          ),
-                          const SizedBox(height: 2),
-                          Pill(user.role.toUpperCase(),
-                              background: kPrimarySoft, foreground: kPrimaryDark),
+                          const Text('BLOOD GROUP TYPE', style: TextStyle( fontSize: 11, letterSpacing: 0.8, fontWeight: FontWeight.w800, color: kMuted)),
+                          Text(group == 'O-' ? 'O- (Universal Donor)' : group, style: const TextStyle(
+                                  fontSize: 19, fontWeight: FontWeight.w800, color: kInk)),
+                          Text('Can donate to: ${kDonatesTo[group]?.join(', ') ?? '-'}',
+                              style: const TextStyle( fontSize: 12, color: kPrimaryDark)),
                         ],
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
-                const Divider(height: 1, color: Color(0xFFEDE7EA)),
-                const SizedBox(height: 12),
-                _infoRow(Icons.email_outlined, 'Email', user.email),
-                _infoRow(Icons.phone_outlined, 'Phone', user.phone.isEmpty ? 'Not set' : user.phone),
-                _infoRow(Icons.location_city_outlined, 'City', user.city),
-                if (user.bloodGroup != null)
-                  _infoRow(Icons.bloodtype_outlined, 'Blood Group', user.bloodGroup!),
-              ],
+              ),
+              const SizedBox(height: 14),
+              AppCard(
+                child: Column( crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [ Row(
+                      children: [ Expanded(
+                          child: Column( crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('Available to Donate', style: TextStyle( fontSize: 16, fontWeight: FontWeight.w800, color: kInk)),
+                              const SizedBox(height: 2),
+                              Text( donor.available ? 'Alerts for your city are on' : 'Alerts are paused',
+                                  style: const TextStyle( fontSize: 13, color: kMuted)),
+                            ],
+                          ),
+                        ),
+                        Switch( value: donor.available, onChanged: (value) async {
+                            final error = await context
+                                .read<DonorProvider>()
+                                .setAvailable(value);
+                            if (error != null) _toast(error);
+                          },
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Container( padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration( color: const Color(0xFFF4F1F6), borderRadius: BorderRadius.circular(12)),
+                      child: Row(
+                        children: [ const Icon(Icons.my_location,  size: 18, color: kPrimaryDark), const SizedBox(width: 8),
+                          Expanded( child: Text( donor.hasLocation
+                                    ? 'Location saved. Alert cards show how far each hospital is.'
+                                    : 'No location saved yet. Add it to see distances on alerts.',
+                                style: const TextStyle( fontSize: 12.5, color: kInk)),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    PrimaryButton( label: 'Update Live Location', icon: Icons.gps_fixed, loading: _locating, onPressed: _updateLocation ),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: 14),
+            if (user.isDonor) ...[
+              _MenuTile( icon: Icons.monitor_heart_outlined, title: 'Donor Health Details', subtitle: donor.hasHealthDetails
+                    ? 'Saved. Used by the ML ranking.' : 'Not filled yet. Used by the ML ranking.',
+                onTap: () => context.push('/donor-details'),
+              ),
+              const SizedBox(height: 10),
+              _MenuTile( icon: Icons.water_drop_outlined, title: 'Donation History', subtitle: 'Requests you accepted',
+                onTap: () => context.push('/history'),
+              ),
+            ] else
+              _MenuTile( icon: Icons.local_hospital_outlined, title: 'My Emergency Blood Requests', subtitle: 'Open, matched and closed requests',
+                onTap: () => context.go('/requests'),
+              ),
+            const SizedBox(height: 10),
+            _MenuTile( icon: Icons.notifications_outlined, title: 'Notifications', subtitle: 'Alerts and request updates',
+              onTap: () => context.go('/alerts'),
             ),
-          ),
-          if (user.isDonor) ...[
-            const SizedBox(height: 20),
-            _SectionTitle('ML HEALTH PROFILE', trailing: 'Edit', onTrailingTap: () {
-              _showMlDetailsDialog(context, donor);
-            }),
-            const SizedBox(height: 8),
-            AppCard(
-              child: Column(
+            const SizedBox(height: 22),
+            OutlinedButton.icon( onPressed: _logout,
+              icon: const Icon(Icons.logout), label: const Text('Log Out of LifeLink'),
+              style: OutlinedButton.styleFrom( foregroundColor: kPrimaryDark, minimumSize: const Size.fromHeight(52), shape: const StadiumBorder(),
+                side: const BorderSide(color: Color(0xFFEDE7EA)), backgroundColor: Colors.white,
+              ),
+            ),
+            if (user.isDonor) ...[ const SizedBox(height: 10), const Text('Logging out pauses emergency alerts on this phone.', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: kMuted)) ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+class _MenuTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+  const _MenuTile({ required this.icon, required this.title, required this.subtitle, required this.onTap });
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector( onTap: onTap,
+      child: AppCard( padding: const EdgeInsets.all(14),
+        child: Row(
+          children: [ CircleAvatar( radius: 22, backgroundColor: kPrimarySoft, child: Icon(icon, color: kPrimaryDark, size: 22) ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column( crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      _metricTile('Age', donor.age != null ? '${donor.age} yrs' : 'Not set'),
-                      _metricTile('Weight', donor.weightKg != null ? '${donor.weightKg} kg' : 'Not set'),
-                      _metricTile('Hemoglobin', donor.hemoglobinGDl != null ? '${donor.hemoglobinGDl} g/dL' : 'Not set'),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  const Divider(height: 1, color: Color(0xFFEDE7EA)),
-                  const SizedBox(height: 10),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('Total Donations Recorded', style: TextStyle(fontSize: 13, color: kMuted)),
-                      Text('${donor.totalDonations}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: kInk)),
-                    ],
-                  ),
+                  Text(title,  style: const TextStyle( fontSize: 15.5, fontWeight: FontWeight.w800, color: kInk)), const SizedBox(height: 2),
+                  Text(subtitle, style: const TextStyle(fontSize: 12.5, color: kMuted)),
                 ],
               ),
             ),
-            const SizedBox(height: 20),
-            _SectionTitle('MY RESPONSES', trailing: 'View', onTrailingTap: () {
-              _showMyResponsesSheet(context);
-            }),
-            const SizedBox(height: 8),
-            AppCard(
-              child: ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.history_outlined, color: kPrimaryDark),
-                title: const Text('Donation Response History', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
-                subtitle: const Text('View blood requests you accepted or declined', style: TextStyle(fontSize: 12, color: kMuted)),
-                trailing: const Icon(Icons.chevron_right, color: kMuted),
-                onTap: () => _showMyResponsesSheet(context),
-              ),
-            ),
+            const Icon(Icons.chevron_right, color: kMuted),
           ],
-          const SizedBox(height: 32),
-          PrimaryButton(
-            label: 'Log Out of LifeLink',
-            icon: Icons.logout,
-            onPressed: () {
-              context.read<RequestProvider>().clear();
-              context.read<AlertProvider>().clear();
-              context.read<DonorProvider>().clear();
-              context.read<AuthProvider>().logout();
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  static Widget _infoRow(IconData icon, String label, String val) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          Icon(icon, size: 18, color: kMuted),
-          const SizedBox(width: 10),
-          Text('$label: ', style: const TextStyle(fontSize: 13, color: kMuted)),
-          Expanded(child: Text(val, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: kInk))),
-        ],
-      ),
-    );
-  }
-
-  static Widget _metricTile(String label, String value) {
-    return Expanded(
-      child: Column(
-        children: [
-          Text(label, style: const TextStyle(fontSize: 12, color: kMuted)),
-          const SizedBox(height: 4),
-          Text(value, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: kInk)),
-        ],
-      ),
-    );
-  }
-
-  static void _showMlDetailsDialog(BuildContext context, DonorProvider donor) {
-    final ageController = TextEditingController(text: donor.age?.toString() ?? '');
-    final weightController = TextEditingController(text: donor.weightKg?.toString() ?? '');
-    final hemoController = TextEditingController(text: donor.hemoglobinGDl?.toString() ?? '');
-    final formKey = GlobalKey<FormState>();
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Donor ML Profile', style: TextStyle(fontWeight: FontWeight.w800)),
-        content: Form(
-          key: formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextFormField(
-                controller: ageController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Age (18 - 100)'),
-                validator: (v) {
-                  final n = int.tryParse(v ?? '');
-                  if (n == null || n < 18 || n > 100) return 'Must be between 18 and 100';
-                  return null;
-                },
-              ),
-              const SizedBox(height: 10),
-              TextFormField(
-                controller: weightController,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(labelText: 'Weight (kg)'),
-                validator: (v) {
-                  final n = double.tryParse(v ?? '');
-                  if (n == null || n <= 0) return 'Enter a valid weight in kg';
-                  return null;
-                },
-              ),
-              const SizedBox(height: 10),
-              TextFormField(
-                controller: hemoController,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(labelText: 'Hemoglobin (g/dL)'),
-                validator: (v) {
-                  final n = double.tryParse(v ?? '');
-                  if (n == null || n <= 0) return 'Enter a valid hemoglobin level';
-                  return null;
-                },
-              ),
-            ],
-          ),
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          FilledButton(
-            onPressed: () async {
-              if (!formKey.currentState!.validate()) return;
-              final age = int.parse(ageController.text.trim());
-              final weight = double.parse(weightController.text.trim());
-              final hemo = double.parse(hemoController.text.trim());
-              final error = await donor.saveMlDetails(age: age, weightKg: weight, hemoglobinGDl: hemo);
-              if (ctx.mounted) Navigator.pop(ctx);
-              if (error != null && context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
-              } else if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ML details updated!')));
-              }
-            },
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  static void _showMyResponsesSheet(BuildContext context) {
-    context.read<DonorProvider>().loadMyResponses();
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => const _MyResponsesSheet(),
-    );
-  }
-}
-
-class _SectionTitle extends StatelessWidget {
-  final String title;
-  final String? trailing;
-  final VoidCallback? onTrailingTap;
-  const _SectionTitle(this.title, {this.trailing, this.onTrailingTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, letterSpacing: 0.8, color: kMuted)),
-        if (trailing != null)
-          GestureDetector(
-            onTap: onTrailingTap,
-            child: Text(trailing!, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: kPrimaryDark)),
-          ),
-      ],
-    );
-  }
-}
-
-class _MyResponsesSheet extends StatelessWidget {
-  const _MyResponsesSheet();
-
-  @override
-  Widget build(BuildContext context) {
-    final donor = context.watch<DonorProvider>();
-    return Container(
-      constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.78),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Center(
-            child: Container(width: 40, height: 4, decoration: BoxDecoration(color: const Color(0xFFDFDAE0), borderRadius: BorderRadius.circular(2))),
-          ),
-          const SizedBox(height: 16),
-          const Text('My Request Responses', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: kInk)),
-          const SizedBox(height: 4),
-          const Text('History of requests you accepted or declined', style: TextStyle(fontSize: 13, color: kMuted)),
-          const SizedBox(height: 14),
-          const Divider(height: 1, color: Color(0xFFEDE7EA)),
-          const SizedBox(height: 12),
-          Expanded(
-            child: donor.loadingResponses
-                ? const Center(child: CircularProgressIndicator(color: kPrimary))
-                : donor.myResponses.isEmpty
-                    ? const Center(child: Text('No request responses recorded yet.', style: TextStyle(color: kMuted)))
-                    : ListView.separated(
-                        itemCount: donor.myResponses.length,
-                        separatorBuilder: (_, _) => const SizedBox(height: 10),
-                        itemBuilder: (_, i) {
-                          final r = donor.myResponses[i];
-                          return AppCard(
-                            padding: const EdgeInsets.all(14),
-                            child: Row(
-                              children: [
-                                CircleAvatar(
-                                  radius: 20,
-                                  backgroundColor: r.isAccepted ? const Color(0xFFE8F5E9) : const Color(0xFFFFEBEE),
-                                  child: Icon(
-                                    r.isAccepted ? Icons.check : Icons.close,
-                                    color: r.isAccepted ? const Color(0xFF2E7D32) : Colors.red,
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          Text('${r.bloodGroup} • ${r.units} units', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
-                                          const Spacer(),
-                                          Pill(
-                                            r.status.toUpperCase(),
-                                            background: r.isAccepted ? const Color(0xFFE8F5E9) : const Color(0xFFFFEBEE),
-                                            foreground: r.isAccepted ? const Color(0xFF2E7D32) : Colors.red,
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text('${r.city} • Request: ${r.requestStatus}', style: const TextStyle(fontSize: 12, color: kMuted)),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-          ),
-        ],
       ),
     );
   }

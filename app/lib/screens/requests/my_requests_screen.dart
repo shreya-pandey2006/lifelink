@@ -1,9 +1,7 @@
 import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-
 import '../../core/theme.dart';
 import '../../models/blood_request.dart';
 import '../../models/potential_donor.dart';
@@ -117,9 +115,8 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
                       padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
                       itemCount: shown.length,
                       separatorBuilder: (_, _) => const SizedBox(height: 14),
-                      itemBuilder: (_, i) => RequestCard(
-                        shown[i],
-                        onTap: () => _showPotentialDonors(shown[i]),
+                      itemBuilder: (_, i) => RequestCard( shown[i],
+                        onTap: () => context.push('/request/${shown[i].id}'),
                       ),
                     ),
             ),
