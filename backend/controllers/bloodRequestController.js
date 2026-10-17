@@ -26,7 +26,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 // Escape special characters before using a city name in a regex.
 const escapeRegex = (value) =>
-  value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); 
 
 // Calculate days since the last donation.
 const daysSince = (date) => {
@@ -428,6 +428,55 @@ const getBloodRequests = async (req, res) => {
   }
 };
 
+/* GET A SINGLE BLOOD REQUEST BY ID */
+const getBloodRequestById = async (req, res) => {
+  try {
+    const { requestId } = req.params;
+
+    // Validate MongoDB ObjectId
+    if (!mongoose.isValidObjectId(requestId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid blood request ID"
+      });
+    }
+
+    // Find the blood request
+    const bloodRequest = await BloodRequest.findById(requestId);
+
+    if (!bloodRequest) {
+      return res.status(404).json({
+        success: false,
+        message: "Blood request not found"
+      });
+    }
+
+    // Requesters can access only their own requests.
+    // Admins can access all requests.
+    if (
+      req.user.role !== "admin" &&
+      bloodRequest.requester.toString() !== req.user.id
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "You do not have permission to access this blood request"
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      bloodRequest
+    });
+  } catch (error) {
+    console.error("Get blood request by ID error:", error.message);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch blood request"
+    });
+  }
+};
+
 // FIND POTENTIAL DONORS WITH PAGINATION
 const getPotentialDonors = async (req, res) => {
   try {
@@ -641,5 +690,6 @@ const getPotentialDonors = async (req, res) => {
 module.exports = {
   createBloodRequest,
   getBloodRequests,
+  getBloodRequestById,
   getPotentialDonors
 };
