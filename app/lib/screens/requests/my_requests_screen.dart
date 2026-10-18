@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../core/theme.dart';
 import '../../models/blood_request.dart';
 import '../../models/potential_donor.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/request_provider.dart';
 import '../../widgets/request_card.dart';
 import '../../widgets/ui.dart';
@@ -17,7 +18,7 @@ class MyRequestsScreen extends StatefulWidget {
 }
 
 class _MyRequestsScreenState extends State<MyRequestsScreen> {
-  String _filter = 'all'; 
+  String _filter = 'all';
   Timer? _timer;
 
   @override
@@ -33,7 +34,7 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
 
   @override
   void dispose() {
-    _timer?.cancel(); 
+    _timer?.cancel();
     super.dispose();
   }
 
@@ -51,109 +52,82 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
         return true;
     }
   }
-  @override
-  Widget build(BuildContext context) {
-    final p = context.watch<RequestProvider>();
-    final shown = p.requests.where((r) => _inFilter(r, _filter)).toList();
-    Widget body;
-    if (p.loading && p.requests.isEmpty) {
-      body = const Center(child: CircularProgressIndicator(color: kPrimary));
-    } else if (p.error != null && p.requests.isEmpty) {
-      body = Center(
+
+  void _showHotlineDialog() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(p.error!, textAlign: TextAlign.center),
-            TextButton(
-                onPressed: () => p.load(), child: const Text('Try again')),
-          ],
-        ),
-      );
-    } else if (p.requests.isEmpty) {
-      body = Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.bloodtype_outlined, size: 56, color: kMuted),
-            const SizedBox(height: 12),
-            const Text('No requests yet',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-            const SizedBox(height: 4),
-            const Text('Post an urgent request to alert matching donors.',
-                style: TextStyle(color: kMuted)),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: 240,
-              child: PrimaryButton(
-                label: 'Request Blood',
-                onPressed: () => context.push('/request/new'),
-              ),
-            ),
-          ],
-        ),
-      );
-    } else {
-      body = Column(
-        children: [
-          _filterBar(p.requests),
-          Expanded(
-            child: RefreshIndicator(
-              color: kPrimary,
-              onRefresh: () => p.load(silent: true),
-              child: shown.isEmpty
-                  ? ListView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      children: const [
-                        SizedBox(height: 80),
-                        Center(
-                            child: Text('No requests in this filter.',
-                                style: TextStyle(color: kMuted))),
-                      ],
-                    )
-                  : ListView.separated(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
-                      itemCount: shown.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 14),
-                      itemBuilder: (_, i) => Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          RequestCard(
-                            shown[i],
-                            onTap: () => context.push('/request/${shown[i].id}'),
-                          ),
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: TextButton.icon(
-                              onPressed: () => _showPotentialDonors(shown[i]),
-                              icon: const Icon(Icons.people_outline, size: 16),
-                              label: const Text('Matching Donors',
-                                  style: TextStyle(fontSize: 12)),
-                            ),
-                          ),
-                        ],
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFEE2E2),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(Icons.phone_in_talk_rounded,
+                      color: kPrimaryDark, size: 22),
+                ),
+                const SizedBox(width: 12),
+                const Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Emergency Dispatch Line',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                        color: kInk,
                       ),
                     ),
+                    Text(
+                      '24/7 Rapid Emergency Response Coordinator',
+                      style: TextStyle(fontSize: 12, color: kMuted),
+                    ),
+                  ],
+                ),
+              ],
             ),
-          ),
-        ],
-      );
-    }
-
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: kBackground,
-        surfaceTintColor: Colors.transparent,
-        title: const Text('My Blood Requests',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
-      ),
-      body: body,
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.push('/request/new'),
-        backgroundColor: kPrimary,
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.add),
-        label: const Text('Request Blood'),
+            const SizedBox(height: 18),
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8F7FA),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.health_and_safety_outlined,
+                      color: kPrimaryDark, size: 20),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Toll-Free Dispatch: 1800-LIFE-LINK (+91 800 543 3546)\nDirect Trauma Desk is active.',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: kInk,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 18),
+            PrimaryButton(
+              label: 'Close',
+              onPressed: () => Navigator.pop(ctx),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -167,38 +141,381 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
     );
   }
 
-  Widget _filterBar(List<BloodRequest> all) {
-    const filters = {
-      'all': 'All',
-      'open': 'Open',
-      'matched': 'Matched',
-      'closed': 'Closed',
-    };
+  @override
+  Widget build(BuildContext context) {
+    final p = context.watch<RequestProvider>();
+    final auth = context.watch<AuthProvider>();
+    final user = auth.user;
+    final initial = (user?.name != null && user!.name.isNotEmpty)
+        ? user.name[0].toUpperCase()
+        : '?';
+
+    final shown = p.requests.where((r) => _inFilter(r, _filter)).toList();
+    final openCount = p.requests.where((r) => r.status == 'open').length;
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFFBF9FB),
+      body: SafeArea(
+        child: RefreshIndicator(
+          color: kPrimary,
+          onRefresh: () => p.load(silent: true),
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // =======================================================
+                      // 1. Top Header: LifeLink + Brand Logo + Actions
+                      // =======================================================
+                      Row(
+                        children: [
+                          const BrandLogo(size: 38),
+                          const SizedBox(width: 10),
+                          const Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'LifeLink',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w900,
+                                  color: kInk,
+                                ),
+                              ),
+                              Text(
+                                'MY BLOOD REQUESTS',
+                                style: TextStyle(
+                                  fontSize: 9.5,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.8,
+                                  color: kPrimaryDark,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const Spacer(),
+                          Tooltip(
+                            message: 'Emergency Hotline',
+                            child: Material(
+                              color: const Color(0xFFFDE8E8),
+                              shape: const CircleBorder(),
+                              clipBehavior: Clip.antiAlias,
+                              child: InkWell(
+                                customBorder: const CircleBorder(),
+                                onTap: _showHotlineDialog,
+                                child: const SizedBox(
+                                  width: 40,
+                                  height: 40,
+                                  child: Icon(
+                                    Icons.phone_in_talk_rounded,
+                                    color: kPrimaryDark,
+                                    size: 20,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Tooltip(
+                            message: 'View Profile',
+                            child: Material(
+                              color: kPrimarySoft,
+                              shape: const CircleBorder(),
+                              clipBehavior: Clip.antiAlias,
+                              child: InkWell(
+                                customBorder: const CircleBorder(),
+                                onTap: () => context.go('/profile'),
+                                child: SizedBox(
+                                  width: 40,
+                                  height: 40,
+                                  child: Center(
+                                    child: Text(
+                                      initial,
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w800,
+                                        color: kPrimaryDark,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 18),
+
+                      // =======================================================
+                      // 2. Title & Live Status Row
+                      // =======================================================
+                      const Text(
+                        'My Blood Requests',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                          color: kInk,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Container(
+                            width: 7,
+                            height: 7,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: openCount > 0
+                                  ? const Color(0xFFBA1A1A)
+                                  : const Color(0xFF10B981),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            openCount > 0
+                                ? '$openCount Active Urgent Requests \u2022 Live Radar Matching'
+                                : 'All requests fulfilled \u2022 Live radar active',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: kMuted,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+
+                      // =======================================================
+                      // 3. Filter Chips
+                      // =======================================================
+                      _buildFilters(p.requests),
+                      const SizedBox(height: 16),
+                    ],
+                  ),
+                ),
+              ),
+
+              // ===============================================================
+              // 4. Request Cards List or Empty States
+              // ===============================================================
+              if (p.loading && p.requests.isEmpty) ...[
+                const SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Center(
+                    child: CircularProgressIndicator(color: kPrimary),
+                  ),
+                ),
+              ] else if (p.error != null && p.requests.isEmpty) ...[
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(p.error!, textAlign: TextAlign.center),
+                        const SizedBox(height: 10),
+                        TextButton(
+                          onPressed: () => p.load(),
+                          child: const Text('Try again'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ] else if (p.requests.isEmpty) ...[
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 56,
+                          height: 56,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFFF1EEF3),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.bloodtype_outlined,
+                              size: 28, color: kMuted),
+                        ),
+                        const SizedBox(height: 14),
+                        const Text(
+                          'No blood requests yet',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: kInk,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          'Post an emergency request to dispatch matching donors.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontSize: 12.5, color: kMuted),
+                        ),
+                        const SizedBox(height: 20),
+                        SizedBox(
+                          width: 200,
+                          child: PrimaryButton(
+                            label: 'Request Blood',
+                            onPressed: () => context.push('/request/new'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ] else if (shown.isEmpty) ...[
+                const SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(40),
+                      child: Text(
+                        'No requests in this filter.',
+                        style: TextStyle(fontSize: 13, color: kMuted),
+                      ),
+                    ),
+                  ),
+                ),
+              ] else ...[
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 96),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, i) {
+                        final r = shown[i];
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 14),
+                          child: RequestCard(
+                            r,
+                            onTap: () => context.push('/request/${r.id}'),
+                            onMatchingDonors: () => _showPotentialDonors(r),
+                          ),
+                        );
+                      },
+                      childCount: shown.length,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => context.push('/request/new'),
+        backgroundColor: const Color(0xFFBA1A1A),
+        foregroundColor: Colors.white,
+        elevation: 3,
+        shape: const StadiumBorder(),
+        icon: const Icon(Icons.add, size: 20),
+        label: const Text(
+          'Request Blood',
+          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFilters(List<BloodRequest> all) {
+    final filters = [
+      {'key': 'all', 'label': 'All', 'count': all.length},
+      {
+        'key': 'open',
+        'label': 'Open',
+        'count': all.where((r) => r.status == 'open').length,
+      },
+      {
+        'key': 'matched',
+        'label': 'Matched',
+        'count': all.where((r) => r.status == 'matched').length,
+      },
+      {
+        'key': 'closed',
+        'label': 'Closed',
+        'count': all
+            .where((r) =>
+                r.status == 'fulfilled' ||
+                r.status == 'cancelled' ||
+                r.status == 'expired')
+            .length,
+      },
+    ];
+
     return SizedBox(
-      height: 48,
-      child: ListView(
+      height: 38,
+      child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        children: filters.entries.map((e) {
-          final count = all.where((r) => _inFilter(r, e.key)).length;
-          final selected = _filter == e.key;
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: ChoiceChip(
-              label: Text('${e.value} ($count)'),
-              selected: selected,
-              onSelected: (_) => setState(() => _filter = e.key),
-              selectedColor: kPrimarySoft,
-              backgroundColor: Colors.white,
-              labelStyle: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  color: selected ? kPrimaryDark : kMuted),
-              side: BorderSide(
-                  color: selected ? kPrimaryDark : const Color(0xFFEDE7EA)),
-              showCheckmark: false,
+        itemCount: filters.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemBuilder: (context, i) {
+          final f = filters[i];
+          final key = f['key'] as String;
+          final label = f['label'] as String;
+          final count = f['count'] as int;
+          final selected = _filter == key;
+
+          return Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(20),
+              onTap: () => setState(() => _filter = key),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: selected ? const Color(0xFFBA1A1A) : Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: selected
+                        ? const Color(0xFFBA1A1A)
+                        : const Color(0xFFEDE7EA),
+                  ),
+                  boxShadow: [
+                    if (selected)
+                      BoxShadow(
+                        color:
+                            const Color(0xFFBA1A1A).withValues(alpha: 0.25),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (!selected && key == 'open' && count > 0) ...[
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF10B981),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 5),
+                    ],
+                    Text(
+                      '$label ($count)',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w800,
+                        color: selected ? Colors.white : kInk,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           );
-        }).toList(),
+        },
       ),
     );
   }
@@ -218,7 +535,9 @@ class _PotentialDonorsSheetState extends State<_PotentialDonorsSheet> {
   @override
   void initState() {
     super.initState();
-    _future = context.read<RequestProvider>().getPotentialDonors(widget.request.id);
+    _future = context
+        .read<RequestProvider>()
+        .getPotentialDonors(widget.request.id);
   }
 
   @override
@@ -254,15 +573,17 @@ class _PotentialDonorsSheetState extends State<_PotentialDonorsSheet> {
                 height: 48,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: kPrimarySoft,
+                  color: const Color(0xFFFDF2F2),
                   borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0xFFFCDADA)),
                 ),
                 child: Text(
                   r.bloodGroup,
                   style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      color: kPrimaryDark),
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xFFBA1A1A),
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -270,101 +591,108 @@ class _PotentialDonorsSheetState extends State<_PotentialDonorsSheet> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    const Text(
                       'Request Details & Donors',
-                      style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                          color: kInk),
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                        color: kInk,
+                      ),
                     ),
-                    Row(
-                      children: [
-                        Text(
-                          '${r.units} units required in ${r.city}',
-                          style: const TextStyle(fontSize: 13, color: kMuted),
-                        ),
-                        if (r.predictedUrgency != null) ...[
-                          const SizedBox(width: 8),
-                          Pill(
-                            'AI: ${r.predictedUrgency!.toUpperCase()}',
-                            background: const Color(0xFFFFEBEE),
-                            foreground: const Color(0xFFC62828),
-                          ),
-                        ],
-                      ],
+                    Text(
+                      '${r.hospitalName} \u2022 ${r.city}',
+                      style: const TextStyle(fontSize: 12, color: kMuted),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
               ),
+              IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: () => Navigator.pop(context),
+              ),
             ],
           ),
-          const SizedBox(height: 16),
-          const Divider(height: 1, color: Color(0xFFEDE7EA)),
-          const SizedBox(height: 14),
-          const Text(
-            'Eligible Matching Donors',
-            style: TextStyle(
-                fontSize: 15, fontWeight: FontWeight.w800, color: kInk),
-          ),
-          const SizedBox(height: 4),
-          const Text(
-            'Compatible donors in this city ranked by response likelihood.',
-            style: TextStyle(fontSize: 12, color: kMuted),
-          ),
           const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8F7FA),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _statColumn(
+                  'Required',
+                  '${r.units} Units',
+                  const Color(0xFFBA1A1A),
+                ),
+                _statColumn(
+                  'Fulfilled',
+                  '${r.unitsAccepted} Units',
+                  const Color(0xFF10B981),
+                ),
+                _statColumn(
+                  'Status',
+                  r.status.toUpperCase(),
+                  kInk,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'Compatible Donors in Radar Range',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+              color: kInk,
+            ),
+          ),
+          const SizedBox(height: 8),
           Expanded(
             child: FutureBuilder<List<PotentialDonor>>(
               future: _future,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
+              builder: (ctx, snap) {
+                if (snap.connectionState == ConnectionState.waiting) {
                   return const Center(
                     child: CircularProgressIndicator(color: kPrimary),
                   );
                 }
-                if (snapshot.hasError) {
+                if (snap.hasError) {
                   return Center(
+                    child: Text(
+                      'Error loading donors: ${snap.error}',
+                      style: const TextStyle(color: kMuted),
+                    ),
+                  );
+                }
+                final list = snap.data ?? [];
+                if (list.isEmpty) {
+                  return const Center(
                     child: Padding(
-                      padding: const EdgeInsets.all(16),
+                      padding: EdgeInsets.all(24),
                       child: Text(
-                        '${snapshot.error}',
+                        'No matching donors currently registered in this city.',
                         textAlign: TextAlign.center,
-                        style: const TextStyle(color: Colors.red),
+                        style: TextStyle(color: kMuted),
                       ),
                     ),
                   );
                 }
-                final donors = snapshot.data ?? [];
-                if (donors.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.people_outline,
-                            size: 48, color: kMuted),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'No matching donors currently available',
-                          style: TextStyle(
-                              fontSize: 15, fontWeight: FontWeight.w700),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Donors in ${r.city} with compatible blood group will appear here as they become available.',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(fontSize: 12, color: kMuted),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
                 return ListView.separated(
-                  itemCount: donors.length,
+                  itemCount: list.length,
                   separatorBuilder: (_, _) => const SizedBox(height: 10),
-                  itemBuilder: (_, idx) {
-                    final d = donors[idx];
-                    return AppCard(
-                      padding: const EdgeInsets.all(14),
+                  itemBuilder: (ctx, i) {
+                    final d = list[i];
+                    return Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: const Color(0xFFEDE7EA)),
+                      ),
                       child: Row(
                         children: [
                           CircleAvatar(
@@ -373,8 +701,10 @@ class _PotentialDonorsSheetState extends State<_PotentialDonorsSheet> {
                             child: Text(
                               d.bloodGroup,
                               style: const TextStyle(
-                                  fontWeight: FontWeight.w800,
-                                  color: kPrimaryDark),
+                                fontWeight: FontWeight.w800,
+                                color: kPrimaryDark,
+                                fontSize: 13,
+                              ),
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -382,34 +712,41 @@ class _PotentialDonorsSheetState extends State<_PotentialDonorsSheet> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Row(
-                                  children: [
-                                    Text(
-                                      'Donor (${d.bloodGroup})',
-                                      style: const TextStyle(
-                                          fontWeight: FontWeight.w800,
-                                          fontSize: 14),
-                                    ),
-                                    const Spacer(),
-                                    if (d.responseProbability != null)
-                                      Pill(
-                                        '${(d.responseProbability! * 100).toStringAsFixed(0)}% MATCH',
-                                        background: const Color(0xFFE8F5E9),
-                                        foreground: const Color(0xFF2E7D32),
-                                      )
-                                    else
-                                      const Pill('READY TO DONATE',
-                                          background: Color(0xFFE8F5E9),
-                                          foreground: Color(0xFF2E7D32)),
-                                  ],
-                                ),
-                                const SizedBox(height: 4),
                                 Text(
-                                  '${d.city} • Total donations: ${d.totalDonations}${d.age != null ? ' • ${d.age} yrs' : ''}',
+                                  'Donor (${d.bloodGroup}) \u2022 ${d.city}',
                                   style: const TextStyle(
-                                      fontSize: 12, color: kMuted),
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w800,
+                                    color: kInk,
+                                  ),
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  '${d.totalDonations} past donations${d.age != null ? ' \u2022 ${d.age} yrs' : ''}',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: kMuted,
+                                  ),
                                 ),
                               ],
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 9, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFD1FAE5),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              d.responseProbability != null
+                                  ? '${(d.responseProbability! * 100).toStringAsFixed(0)}% Match'
+                                  : 'Matched',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF065F46),
+                              ),
                             ),
                           ),
                         ],
@@ -422,6 +759,23 @@ class _PotentialDonorsSheetState extends State<_PotentialDonorsSheet> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _statColumn(String label, String value, Color color) {
+    return Column(
+      children: [
+        Text(label, style: const TextStyle(fontSize: 11, color: kMuted)),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w800,
+            color: color,
+          ),
+        ),
+      ],
     );
   }
 }

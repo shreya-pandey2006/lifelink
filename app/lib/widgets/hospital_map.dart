@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../core/constants.dart';
 import '../core/theme.dart';
+import 'lifelink_map_view.dart';
 
 class HospitalMap extends StatelessWidget {
   final double? lat;
@@ -63,74 +63,24 @@ class HospitalMap extends StatelessWidget {
       );
     }
 
-    final point = LatLng(la, ln);
     final isCityFallback = (lat == null || lng == null);
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: SizedBox(
-        height: height,
-        child: Stack(
-          children: [
-            GoogleMap(
-              key: ValueKey('$la,$ln'),
-              initialCameraPosition: CameraPosition(
-                target: point,
-                zoom: isCityFallback ? 14 : 15,
-              ),
-              markers: {
-                Marker(
-                  markerId: const MarkerId('hospital'),
-                  position: point,
-                  infoWindow: InfoWindow(
-                    title: title.isNotEmpty ? title : 'Hospital Location',
-                    snippet: isCityFallback && city != null && city!.isNotEmpty
-                        ? '$city hospital area'
-                        : 'Destination hospital',
-                  ),
-                ),
-              },
-              liteModeEnabled: true,
-              zoomControlsEnabled: false,
-              myLocationButtonEnabled: false,
-              mapToolbarEnabled: false,
-            ),
-            Positioned(
-              bottom: 10,
-              left: 10,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.92),
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Colors.black12,
-                      blurRadius: 4,
-                      offset: Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.location_on, color: kPrimaryDark, size: 14),
-                    const SizedBox(width: 4),
-                    Text(
-                      title.isNotEmpty ? title : (city ?? 'Hospital Location'),
-                      style: const TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w700,
-                        color: kInk,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+    return LifeLinkMapView(
+      key: ValueKey('hosp_$la,$ln'),
+      latitude: la,
+      longitude: ln,
+      zoom: isCityFallback ? 13 : 14.5,
+      height: height,
+      showRadarRings: false,
+      badgeText: isCityFallback && city != null && city!.isNotEmpty
+          ? '$city Hospital Area'
+          : 'Destination Hospital',
+      badgeIcon: Icons.local_hospital,
+      badgeColor: kPrimaryDark,
+      markerTitle: title.isNotEmpty ? title : 'Hospital Location',
+      markerSubtitle: isCityFallback && city != null && city!.isNotEmpty
+          ? '$city hospital area'
+          : 'Destination hospital',
     );
   }
 }

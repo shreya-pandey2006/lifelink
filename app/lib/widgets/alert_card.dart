@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../core/format.dart';
 import '../core/theme.dart';
 import '../models/alert_item.dart';
+import 'lifelink_map_view.dart';
 
 class AlertCard extends StatelessWidget {
   final AlertItem alert;
@@ -305,21 +305,16 @@ class AlertCard extends StatelessWidget {
                             width: double.infinity,
                             child: Stack(
                               children: [
-                                GoogleMap(
+                                LifeLinkMapView(
                                   key: ValueKey(
                                       'card_map_${alert.requestId}_$la,$ln'),
-                                  initialCameraPosition: CameraPosition(
-                                      target: LatLng(la, ln), zoom: 14.5),
-                                  markers: {
-                                    Marker(
-                                      markerId: const MarkerId('hosp_pin'),
-                                      position: LatLng(la, ln),
-                                    ),
-                                  },
-                                  liteModeEnabled: true,
-                                  zoomControlsEnabled: false,
-                                  myLocationButtonEnabled: false,
-                                  mapToolbarEnabled: false,
+                                  latitude: la,
+                                  longitude: ln,
+                                  zoom: 14.5,
+                                  height: 95,
+                                  showRadarRings: false,
+                                  interactive: false,
+                                  showControls: false,
                                 ),
                                 Positioned.fill(
                                   child: Container(
