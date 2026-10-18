@@ -1,4 +1,3 @@
-
 const express = require("express");
 const router = express.Router();
 
@@ -8,7 +7,9 @@ const {
   getAllBloodRequests,
   getAllDonors,
   getAllDonorResponses,
-  updateBloodRequestStatus
+  updateBloodRequestStatus,
+  getRareBloodGroups,
+  getResponseReliability
 } = require("../controllers/adminController");
 
 const { auth, requireRole } = require("../middleware/authMiddleware");
@@ -58,6 +59,20 @@ router.patch(
   auth,
   requireRole("admin"),
   updateBloodRequestStatus
+);
+
+router.get(
+  "/analytics/rare-blood-groups",
+  auth,
+  requireRole("admin"),
+  getRareBloodGroups
+);
+
+router.get(
+  "/analytics/response-reliability",
+  auth,
+  requireRole("admin"),
+  getResponseReliability
 );
 
 module.exports = router;

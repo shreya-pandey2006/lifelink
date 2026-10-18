@@ -299,3 +299,101 @@ exports.updateBloodRequestStatus = async (req, res) => {
     });
   }
 };
+
+const BLOOD_GROUPS = ["O-", "O+", "A-", "A+", "B-", "B+", "AB-", "AB+"];
+
+// GET /api/admin/analytics/rare-blood-groups
+exports.getRareBloodGroups = async (req, res) => {
+  try {
+    const rawThreshold = req.query.threshold ?? "3";
+    const threshold = Number(rawThreshold);
+
+    if (
+      !Number.isSafeInteger(threshold) ||
+      threshold < 0 ||
+      threshold > 1000000
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Threshold must be an integer between 0 and 1000000"
+      });
+    }
+
+    const counts = await Donor.aggregate([
+      { $match: { available: true } },
+      {
+        $group: {
+          _id: "$bloodGroup",
+          availableDonors: { $sum: 1 }
+        }
+      }
+    ]);
+
+    const countMap = new Map(
+      counts.map(item => [item._id, item.availableDonors])
+    );
+
+    const bloodGroups = BLOOD_GROUPS.map(bloodGroup => ({
+      bloodGroup,
+      availableDonors: countMap.get(bloodGroup) || 0
+    }));
+
+    const rareGroups = bloodGroups.filter(
+      group => group.availableDonors <= threshold
+    );
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        threshold,
+        bloodGroups,
+        rareGroups,
+        rareGroupCount: rareGroups.length
+      }
+    });
+  } catch (error) {
+    console.error("Rare blood groups error:", error.message);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch rare blood group statistics"
+    });
+  }
+};
+
+// GET /api/admin/analytics/response-reliability
+exports.getResponseReliability = async (req, res) => {
+  try {
+    const [totalResponses, acceptedResponses, declinedResponses] =
+      await Promise.all([
+        DonorResponse.countDocuments(),
+        DonorResponse.countDocuments({ status: "accepted" }),
+        DonorResponse.countDocuments({ status: "declined" })
+      ]);
+
+    const acceptanceRatePercentage =
+      totalResponses === 0
+        ? null
+        : Number(
+            ((acceptedResponses / totalResponses) * 100).toFixed(2)
+          );
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        totalResponses,
+        acceptedResponses,
+        declinedResponses,
+        acceptanceRatePercentage,
+        metric: "donor_response_acceptance_rate"
+      }
+    });
+  } catch (error) {
+    console.error("Response reliability error:", error.message);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch response reliability"
+    });
+  }
+};
