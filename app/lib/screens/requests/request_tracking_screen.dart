@@ -6,6 +6,7 @@ import '../../core/format.dart';
 import '../../core/theme.dart';
 import '../../models/blood_request.dart';
 import '../../models/responder.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/request_provider.dart';
 import '../../providers/tracking_provider.dart';
 import '../../widgets/hospital_map.dart';
@@ -60,18 +61,35 @@ class _RequestTrackingScreenState extends State<RequestTrackingScreen> {
       builder: (ctx) => AlertDialog(
         title: const Text('Cancel this request?'),
         content: const Text(
-            'Donors who accepted will be told they no longer need to come.'),
+            'Donors who were alerted will be notified that this request is no longer active.'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
               child: const Text('Keep request')),
           FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: kPrimaryDark),
               onPressed: () => Navigator.pop(ctx, true),
               child: const Text('Cancel request')),
         ],
       ),
     );
-    if (ok == true) await _changeStatus('cancelled');
+    if (ok != true) return;
+    if (!mounted) return;
+
+    final error = await context
+        .read<TrackingProvider>()
+        .cancelRequest(widget.requestId);
+    if (!mounted) return;
+    if (error == null) {
+      context.read<RequestProvider>().load(silent: true);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Blood request cancelled.'),
+      ));
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(error),
+      ));
+    }
   }
   @override
   Widget build(BuildContext context) {
@@ -102,7 +120,12 @@ class _RequestTrackingScreenState extends State<RequestTrackingScreen> {
           children: [
             _summary(r),
             const SizedBox(height: 14),
-            HospitalMap(lat: r.lat, lng: r.lng, title: r.hospitalName),
+            HospitalMap(
+              lat: r.lat,
+              lng: r.lng,
+              title: r.hospitalName,
+              city: r.city,
+            ),
             const SizedBox(height: 14),
             _progress(r),
             const SizedBox(height: 18),
@@ -144,7 +167,10 @@ class _RequestTrackingScreenState extends State<RequestTrackingScreen> {
                 decoration: BoxDecoration(
                     color: kPrimaryDark,
                     borderRadius: BorderRadius.circular(18)),
-                child: Text(r.bloodGroup,
+                child: Text(
+                    r.bloodGroup.trim().isNotEmpty
+                        ? r.bloodGroup.trim()
+                        : 'Blood',
                     style: const TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.w800,
@@ -168,14 +194,26 @@ class _RequestTrackingScreenState extends State<RequestTrackingScreen> {
                       ],
                     ),
                     const SizedBox(height: 8),
-                    Text(r.hospitalName,
+                    Text(
+                        r.hospitalName.trim().isNotEmpty
+                            ? r.hospitalName.trim()
+                            : (r.city.trim().isNotEmpty
+                                ? 'Hospital in ${r.city.trim()}'
+                                : 'Emergency Blood Request'),
                         style: const TextStyle(
                             fontSize: 17,
                             fontWeight: FontWeight.w800,
                             color: kInk)),
                     const SizedBox(height: 2),
-                    Text('${r.city} \u2022 ${timeAgo(r.createdAt)}',
-                        style: const TextStyle(fontSize: 12, color: kMuted)),
+                    () {
+                      final meta = [
+                        if (r.city.trim().isNotEmpty) r.city.trim(),
+                        if (r.createdAt != null) timeAgo(r.createdAt),
+                      ];
+                      if (meta.isEmpty) return const SizedBox.shrink();
+                      return Text(meta.join(' \u2022 '),
+                          style: const TextStyle(fontSize: 12, color: kMuted));
+                    }(),
                   ],
                 ),
               ),
@@ -216,8 +254,10 @@ class _RequestTrackingScreenState extends State<RequestTrackingScreen> {
     final steps = <_TimelineStep>[
       _TimelineStep(
         title: 'Broadcast Sent',
-        subtitle:
-            'Alert sent to matching donors in ${r.city} \u2022 ${timeAgo(r.createdAt)}',
+        subtitle: [
+          'Alert sent to matching donors in ${r.city.trim().isNotEmpty ? r.city.trim() : 'this city'}',
+          if (r.createdAt != null) timeAgo(r.createdAt),
+        ].join(' \u2022 '),
         state: _StepState.done,
       ),
       _TimelineStep(
@@ -304,7 +344,9 @@ class _RequestTrackingScreenState extends State<RequestTrackingScreen> {
         const SizedBox(height: 10),
         if (p.responders.isEmpty)
           Text(
-              'No donor has responded yet. Matching donors in ${p.request?.city ?? 'your city'} have been alerted.',
+              (p.request != null && p.request!.city.trim().isNotEmpty)
+                  ? 'No donor has responded yet. Matching donors in ${p.request!.city.trim()} have been alerted.'
+                  : 'No donor has responded yet. Matching donors in your city have been alerted.',
               style: const TextStyle(color: kMuted))
         else
           for (final d in p.responders) ...[
@@ -316,21 +358,45 @@ class _RequestTrackingScreenState extends State<RequestTrackingScreen> {
   }
 
   List<Widget> _actions(BloodRequest r) {
+    final user = context.read<AuthProvider>().user;
+    final isCancellable = r.status == 'open' || r.status == 'matched';
+    final isOwner = user != null &&
+        (r.requesterId == null ||
+            r.requesterId!.isEmpty ||
+            r.requesterId == user.id);
+    final canCancel = isCancellable && (isOwner || user?.isAdmin == true);
+    final canFulfill = user?.isAdmin == true && r.status == 'matched';
+
+    if (!canCancel && !canFulfill) return const [];
+
     return [
-      if (r.status == 'matched')
+      if (canFulfill) ...[
         PrimaryButton(
           label: 'Mark as Fulfilled',
           icon: Icons.check_circle_outline,
           onPressed: () => _changeStatus('fulfilled'),
         ),
-      if (r.status == 'open' || r.status == 'matched')
-        Center(
-          child: TextButton.icon(
-            onPressed: _confirmCancel,
-            icon: const Icon(Icons.cancel_outlined, color: kPrimaryDark),
-            label: const Text('Cancel Request',
-                style: TextStyle(
-                    color: kPrimaryDark, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 12),
+      ],
+      if (canCancel)
+        OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(
+            foregroundColor: kPrimaryDark,
+            side: const BorderSide(color: kPrimaryDark, width: 1.5),
+            minimumSize: const Size.fromHeight(48),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+          ),
+          onPressed: _confirmCancel,
+          icon: const Icon(Icons.cancel_outlined, size: 20),
+          label: const Text(
+            'Cancel Blood Request',
+            style: TextStyle(
+              color: kPrimaryDark,
+              fontWeight: FontWeight.w800,
+              fontSize: 15,
+            ),
           ),
         ),
     ];

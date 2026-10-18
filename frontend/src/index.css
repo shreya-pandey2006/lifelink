@@ -1,0 +1,74 @@
+:root {
+  --lifelink-red: #A7193F;
+  --lifelink-red-dark: #8F1535;
+  --lifelink-red-light: #F8E8ED;
+  --lifelink-text: #25212A;
+  --lifelink-white: #FFFFFF;
+}
+
+.auth-brand h2,
+.visual-brand h2,
+.brand {
+  color: var(--lifelink-red) !important;
+}
+
+.brand-symbol,
+.visual-logo {
+  background: var(--lifelink-red) !important;
+}
+
+.auth-submit,
+.auth-submit:hover {
+  background: var(--lifelink-red);
+}
+
+.register-prompt button,
+.section-eyebrow,
+.eyebrow {
+  color: var(--lifelink-red);
+}
+
+.emergency-line strong,
+.emergency-dot {
+  color: var(--lifelink-red);
+}
+
+.lifelink-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.lifelink-logo .logo-icon {
+  width: 54px;
+  height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #FFFFFF;
+  color: var(--lifelink-red);
+  box-shadow: 0 8px 22px #0000000D;
+}
+
+.lifelink-logo .logo-icon svg {
+  width: 29px;
+  height: 29px;
+}
+
+.lifelink-logo .logo-name {
+  margin: 0;
+  color: var(--lifelink-red);
+  font-size: 30px;
+  font-weight: 750;
+  line-height: 1.1;
+}
+
+.lifelink-logo .logo-subtitle {
+  margin: 7px 0 0;
+  color: #66616A;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 1.4px;
+}

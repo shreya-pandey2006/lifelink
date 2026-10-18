@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../models/blood_request.dart';
 import '../models/responder.dart';
 import '../services/api_client.dart';
+import '../core/format.dart';
+
 class TrackingProvider extends ChangeNotifier {
   BloodRequest? request;
   List<Responder> responders = [];
@@ -16,15 +18,25 @@ class TrackingProvider extends ChangeNotifier {
     }
     try {
       final data = await ApiClient.instance.get('/requests/$id');
-      final map = data as Map;
-      final requestMap = map['request'] is Map
-          ? Map<String, dynamic>.from(map['request'] as Map)
-          : Map<String, dynamic>.from(map);
-      request = BloodRequest.fromJson(requestMap);
+      final map = asMap(data);
+      final requestMap = extractMap(map, ['bloodRequest', 'request']);
+      request = BloodRequest.fromJson(requestMap.isNotEmpty ? requestMap : map);
       final list = (map['responses'] ?? map['responders']) as List? ?? [];
       responders = list
-          .map((e) => Responder.fromJson(Map<String, dynamic>.from(e as Map)))
+          .map((e) => Responder.fromJson(asMap(e)))
           .toList();
+
+      if (responders.isEmpty) {
+        try {
+          final pd =
+              await ApiClient.instance.get('/requests/$id/potential-donors');
+          final pdMap = asMap(pd);
+          final donors = extractList(pdMap, ['potentialDonors', 'donors', 'data']);
+          responders = donors
+              .map((e) => Responder.fromJson(asMap(e)))
+              .toList();
+        } catch (_) {}
+      }
       limited = false;
       error = null;
     } on ApiException catch (e) {
@@ -73,6 +85,28 @@ class TrackingProvider extends ChangeNotifier {
       error = e.message;
     } catch (_) {
       error = 'Something went wrong. Please try again.';
+    }
+  }
+
+  Future<String?> cancelRequest(String id) async {
+    try {
+      await ApiClient.instance.patch('/requests/$id/cancel');
+      await load(id, silent: true);
+      return null;
+    } on ApiException catch (e) {
+      // Try admin status route fallback if admin
+      try {
+        await ApiClient.instance
+            .patch('/admin/requests/$id/status', {'status': 'cancelled'});
+        await load(id, silent: true);
+        return null;
+      } on ApiException {
+        return e.message;
+      } catch (_) {
+        return e.message;
+      }
+    } catch (_) {
+      return 'Something went wrong. Please try again.';
     }
   }
 

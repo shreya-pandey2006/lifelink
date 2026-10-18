@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants.dart';
 import '../../core/theme.dart';
+import '../../models/app_user.dart';
 import '../../providers/alert_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/donor_provider.dart';
@@ -57,6 +59,126 @@ class _ProfileScreenState extends State<ProfileScreen> {
     context.read<NotificationProvider>().clear();
     context.read<HistoryProvider>().clear();
     context.read<AuthProvider>().logout();
+  }
+
+  Widget _donorMap(DonorProvider donor, AppUser user) {
+    final double lat;
+    final double lng;
+    final bool isLiveGps;
+    final String label;
+
+    if (donor.hasLocation) {
+      lat = donor.lat!;
+      lng = donor.lng!;
+      isLiveGps = true;
+      label = 'Live Location: ${lat.toStringAsFixed(4)}, ${lng.toStringAsFixed(4)}';
+    } else {
+      final cityCoords = getCoordinatesForCity(user.city);
+      lat = cityCoords?.$1 ?? 28.6692;
+      lng = cityCoords?.$2 ?? 77.4538;
+      isLiveGps = false;
+      label = user.city.trim().isNotEmpty
+          ? '${user.city} (Registered City Location)'
+          : 'Approximate City Location';
+    }
+
+    final point = LatLng(lat, lng);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: SizedBox(
+            height: 155,
+            width: double.infinity,
+            child: Stack(
+              children: [
+                GoogleMap(
+                  key: ValueKey('$lat,$lng,$isLiveGps'),
+                  initialCameraPosition: CameraPosition(
+                    target: point,
+                    zoom: isLiveGps ? 15 : 12,
+                  ),
+                  markers: {
+                    Marker(
+                      markerId: const MarkerId('donor_pin'),
+                      position: point,
+                      infoWindow: InfoWindow(
+                        title: isLiveGps ? 'Your Live Location' : '${user.city} Location',
+                        snippet: isLiveGps ? 'GPS Verified' : 'Registered City',
+                      ),
+                    ),
+                  },
+                  liteModeEnabled: true,
+                  zoomControlsEnabled: false,
+                  myLocationButtonEnabled: false,
+                  mapToolbarEnabled: false,
+                ),
+                Positioned(
+                  top: 10,
+                  right: 10,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.92),
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Colors.black12,
+                          blurRadius: 4,
+                          offset: Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          isLiveGps ? Icons.gps_fixed : Icons.location_city,
+                          size: 13,
+                          color: isLiveGps ? const Color(0xFF2E7D32) : kPrimaryDark,
+                        ),
+                        const SizedBox(width: 5),
+                        Text(
+                          isLiveGps ? 'GPS Active' : 'City Center',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: isLiveGps ? const Color(0xFF2E7D32) : kPrimaryDark,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Icon(
+              isLiveGps ? Icons.check_circle : Icons.info_outline,
+              size: 15,
+              color: isLiveGps ? const Color(0xFF2E7D32) : kMuted,
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: isLiveGps ? FontWeight.w700 : FontWeight.w600,
+                  color: isLiveGps ? const Color(0xFF2E7D32) : kMuted,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
   }
   @override
   Widget build(BuildContext context) {
@@ -129,20 +251,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 12),
-                    Container( padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration( color: const Color(0xFFF4F1F6), borderRadius: BorderRadius.circular(12)),
-                      child: Row(
-                        children: [ const Icon(Icons.my_location,  size: 18, color: kPrimaryDark), const SizedBox(width: 8),
-                          Expanded( child: Text( donor.hasLocation
-                                    ? 'Location saved. Alert cards show how far each hospital is.'
-                                    : 'No location saved yet. Add it to see distances on alerts.',
-                                style: const TextStyle( fontSize: 12.5, color: kInk)),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 14),
+                    _donorMap(donor, user),
+                    const SizedBox(height: 14),
                     PrimaryButton( label: 'Update Live Location', icon: Icons.gps_fixed, loading: _locating, onPressed: _updateLocation ),
                   ],
                 ),

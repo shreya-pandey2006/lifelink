@@ -10,6 +10,7 @@ import '../../widgets/ui.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../services/location_service.dart';
 import '../../services/ml_service.dart';
+import '../../widgets/city_search_field.dart';
 import '../../widgets/location_card.dart';
 const _groupHints = {
   'A+': 'Eligible','A-': 'Rare', 'B+': 'Eligible', 'B-': 'Rare', 'AB+': 'Universal Rec.', 'AB-': 'Crit. Rare',  'O+': 'High Need', 'O-': 'Universal',
@@ -106,7 +107,13 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
   void initState() {
     super.initState();
     final userCity = context.read<AuthProvider>().user?.city;
-    if (userCity != null && kCities.contains(userCity)) _city = userCity;
+    if (userCity != null && userCity.trim().isNotEmpty) {
+      _city = userCity.trim();
+      final coords = getCoordinatesForCity(_city);
+      if (coords != null) {
+        _pin = LatLng(coords.$1, coords.$2);
+      }
+    }
   }
 
   @override
@@ -173,16 +180,29 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
           double.tryParse(_patientHemoglobin.text.trim().replaceAll(',', '.'));
       final hrsVal = int.tryParse(_patientRequiredHours.text.trim());
       patientData = {
-        'age': ?ageVal,
+        'age': ageVal ?? 25,
         'gender': _patientGender,
-        'weightKg': ?weightVal,
+        'weightKg': weightVal ?? 60.0,
         'healthIssue': _patientHealthIssue,
-        'hemoglobinGDl': ?hbVal,
-        'requiredWithinHours': ?hrsVal,
+        'hemoglobinGDl': hbVal ?? 12.0,
+        'requiredWithinHours': hrsVal ?? 24,
         'activeBleeding': _patientBleeding,
         'previousTransfusions': _patientTransfusions,
+        'plateletCount': 250000,
+        'systolicBp': 120,
+        'heartRate': 80,
+        'spo2Percent': 98,
+        'bloodComponentNeeded': 'Whole Blood',
       };
     }
+
+    final pinToUse = _pin ??
+        (_city != null && _city!.trim().isNotEmpty
+            ? (() {
+                final coords = getCoordinatesForCity(_city!.trim());
+                return coords != null ? LatLng(coords.$1, coords.$2) : null;
+              })()
+            : null);
 
     try {
       final req = await context.read<RequestProvider>().create(
@@ -192,8 +212,8 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
             city: _city!,
             urgency: _urgency,
             patient: patientData,
-            lat: _pin?.latitude,
-            lng: _pin?.longitude,
+            lat: pinToUse?.latitude,
+            lng: pinToUse?.longitude,
           );
       if (!mounted) return;
       final msg = req.predictedUrgency != null
@@ -380,13 +400,20 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
             validator: (v) => (v == null || v.trim().isEmpty)  ? 'Enter the hospital name' : null,
           ),
           const SizedBox(height: 16), const FieldLabel('City'),
-          DropdownButtonFormField<String>(
-            initialValue: _city, decoration: fieldDecoration(
-                hint: 'Select the city', icon: Icons.location_city_outlined),
-            items: kCities
-                .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                .toList(),
-            onChanged: (v) => setState(() => _city = v), validator: (v) => v == null ? 'Select a city' : null,
+          CitySearchField(
+            initialValue: _city,
+            hintText: 'Search or enter city (e.g. Delhi, Pune, Kolkata)',
+            onChanged: (v) => setState(() {
+              _city = v;
+              if (v.trim().isNotEmpty) {
+                final coords = getCoordinatesForCity(v.trim());
+                if (coords != null) {
+                  _pin = LatLng(coords.$1, coords.$2);
+                }
+              }
+            }),
+            validator: (v) =>
+                (v == null || v.trim().isEmpty) ? 'Please enter a city' : null,
           ),
           const SizedBox(height: 16), const FieldLabel('Hospital Location (recommended)'),
           LocationCard( pin: _pin, busy: _locating, onChooseOnMap: _chooseOnMap, onUseGps: _useGps ),
@@ -526,12 +553,15 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
               ],
             ),
             const SizedBox(height: 8),
-            CheckboxListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Active bleeding present',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-              value: _patientBleeding,
-              onChanged: (v) => setState(() => _patientBleeding = v ?? false),
+            Material(
+              type: MaterialType.transparency,
+              child: CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Active bleeding present',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                value: _patientBleeding,
+                onChanged: (v) => setState(() => _patientBleeding = v ?? false),
+              ),
             ),
             const SizedBox(height: 12),
             SizedBox(

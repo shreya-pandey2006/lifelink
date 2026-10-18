@@ -97,7 +97,14 @@ class _AlertDetailScreenState extends State<AlertDetailScreen> {
             ),
           ),
           const SizedBox(height: 14),
-          HospitalMap(lat: a.lat, lng: a.lng, title: a.hospitalName, height: 200), const SizedBox(height: 14),
+          HospitalMap(
+            lat: a.lat,
+            lng: a.lng,
+            title: a.hospitalName,
+            city: a.city,
+            height: 200,
+          ),
+          const SizedBox(height: 14),
           Container( padding: const EdgeInsets.all(12),
             decoration: BoxDecoration( color: const Color(0xFFF1EEF3), borderRadius: BorderRadius.circular(14)),
             child: const Row(

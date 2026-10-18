@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../core/constants.dart';
 import '../../core/theme.dart';
 import '../../providers/auth_provider.dart';
+import '../../widgets/city_search_field.dart';
 import '../../widgets/ui.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -194,14 +195,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   validator: (v) => v != _password.text ? 'Passwords do not match' : null,
                 ),
                 const SizedBox(height: 16), const FieldLabel('City'),
-                DropdownButtonFormField<String>(
+                CitySearchField(
                   initialValue: _city,
-                  decoration: fieldDecoration( hint: 'Select your city', icon: Icons.location_on_outlined),
-                  items: kCities
-                      .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                      .toList(),
+                  hintText: 'Search or enter your city (e.g. Delhi, Pune)',
+                  icon: Icons.location_on_outlined,
                   onChanged: (v) => setState(() => _city = v),
-                  validator: (v) => v == null ? 'Select your city' : null,
+                  validator: (v) => (v == null || v.trim().isEmpty)
+                      ? 'Please enter your city'
+                      : null,
                 ),
                 if (_role == 'donor') ...[
                   const SizedBox(height: 20),
