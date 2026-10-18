@@ -1,608 +1,585 @@
-
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import "./Dashboard.css";
+import BloodRequests from "./BloodRequests";
 
-const initialRequests = [
-  {
-    id: "REQ-8902",
-    patient: "Elena Rostova",
-    ward: "Trauma Bay 2",
-    group: "O-",
-    hospital: "St. Jude Trauma Hub",
-    city: "Chicago",
-    units: 4,
-    urgency: "Critical",
-    status: "Open",
-  },
-  {
-    id: "REQ-8898",
-    patient: "Marcus Vance",
-    ward: "Surgical Wing C",
-    group: "A+",
-    hospital: "Memorial Health Center",
-    city: "Evanston",
-    units: 2,
-    urgency: "Urgent",
-    status: "Matched",
-  },
-  {
-    id: "REQ-8895",
-    patient: "Amara Chen",
-    ward: "Oncology Ward",
-    group: "B+",
-    hospital: "City General Hospital",
-    city: "Naperville",
-    units: 3,
-    urgency: "Normal",
-    status: "Fulfilled",
-  },
-  {
-    id: "REQ-8891",
-    patient: "Dominic Reed",
-    ward: "Pediatric ICU",
-    group: "AB-",
-    hospital: "Metro Children's Hospital",
-    city: "Oak Park",
-    units: 2,
-    urgency: "Critical",
-    status: "Open",
-  },
-  {
-    id: "REQ-8884",
-    patient: "Kareem Al-Sayed",
-    ward: "Cardio Thoracic",
-    group: "O+",
-    hospital: "Northwestern Memorial",
-    city: "Chicago",
-    units: 5,
-    urgency: "Urgent",
-    status: "Matched",
-  },
-];
+const API_URL = "https://lifelink-backend-8onj.onrender.com";
 
-const inventory = [
-  { group: "O+", percentage: 78, label: "Stable", color: "green" },
-  { group: "A+", percentage: 62, label: "Optimal", color: "blue" },
-  { group: "B+", percentage: 45, label: "Moderate", color: "purple" },
-  { group: "O-", percentage: 18, label: "Low Stock", color: "red" },
-  { group: "AB+", percentage: 34, label: "Attention", color: "gray" },
-];
+function Dashboard({ onLogout }) {
+  const [activePage, setActivePage] = useState("dashboard");
+  const [requests, setRequests] = useState([]);
+  const [donorCount, setDonorCount] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-const activities = [
-  {
-    icon: "person_check",
-    type: "blue",
-    title: <>Donor <strong>David K.</strong> matched with <b>#REQ-8902 (O-)</b></>,
-    detail: "3 mins ago · Rapid Triage Match",
-  },
-  {
-    icon: "done_all",
-    type: "green",
-    title: <><b>#REQ-8891</b> marked Fulfilled at Metro General</>,
-    detail: "14 mins ago · Blood Units Delivered",
-  },
-  {
-    icon: "cell_tower",
-    type: "red",
-    title: <>Critical Request <b>#REQ-8905</b> broadcast to 45 donors</>,
-    detail: "28 mins ago · SMS & Mobile Push (demo)",
-  },
-  {
-    icon: "assignment_turned_in",
-    type: "gray",
-    title: <>Donor check-in verified at St. Jude Trauma Wing</>,
-    detail: "42 mins ago · Demo activity",
-  },
-];
-
-const hotspots = [
-  { name: "St. Jude Trauma", level: "Critical", distance: "3.2 km", color: "red" },
-  { name: "Memorial Health", level: "Urgent", distance: "7.8 km", color: "orange" },
-  { name: "Metro Children's", level: "Critical", distance: "12.4 km", color: "red" },
-  { name: "City General", level: "Normal", distance: "18.1 km", color: "blue" },
-];
-
-const navigation = [
-  { label: "Dashboard", icon: "grid_view", page: "dashboard" },
-  { label: "Blood Requests", icon: "bloodtype", page: "blood-requests" },
-  { label: "Request Details", icon: "clinical_notes", page: "request-details" },
-  { label: "Donors & Notifications", icon: "group", page: "donors-notifications" },
-  { label: "Analytics & Profile", icon: "monitoring", page: "analytics-profile" },
-];
-
-function Icon({ children, className = "" }) {
-  return (
-    <span className={`material-symbols-outlined ${className}`}>
-      {children}
-    </span>
+  const [theme, setTheme] = useState(
+    localStorage.getItem("lifelink-theme") || "light"
   );
-}
 
-function StatCard({ icon, label, value, badge, note, color }) {
-  return (
-    <section className="dash-stat-card">
-      <div className="dash-stat-top">
-        <div className="dash-stat-label">
-          <span className={`dash-stat-icon ${color}`}>
-            <Icon>{icon}</Icon>
-          </span>
-          <span>{label}</span>
-        </div>
-        <span className={`dash-stat-badge ${color}`}>{badge}</span>
-      </div>
-      <div className="dash-stat-bottom">
-        <strong className="dash-stat-value">{value}</strong>
-        <span className={`dash-stat-note ${color}`}>{note}</span>
-      </div>
-    </section>
-  );
-}
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [navbarSearch, setNavbarSearch] = useState("");
 
-function StatusBadge({ children }) {
-  return (
-    <span className={`dash-status ${String(children).toLowerCase()}`}>
-      {children}
-    </span>
-  );
-}
+  const [user] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("user")) || {};
+    } catch {
+      return {};
+    }
+  });
 
-function CreateRequestModal({ onClose, onCreate }) {
-  const [patient, setPatient] = useState("");
-  const [group, setGroup] = useState("O-");
-  const [hospital, setHospital] = useState("");
-  const [city, setCity] = useState("");
-  const [units, setUnits] = useState("1");
-  const [urgency, setUrgency] = useState("Urgent");
-
-  function handleSubmit(event) {
-    event.preventDefault();
-
-    onCreate({
-      id: `REQ-${Math.floor(9000 + Math.random() * 999)}`,
-      patient: patient.trim(),
-      ward: "New request",
-      group,
-      hospital: hospital.trim(),
-      city: city.trim(),
-      units: Number(units),
-      urgency,
-      status: "Open",
-    });
-
-    onClose();
+  function toggleTheme() {
+    const newTheme = theme === "light" ? "dark" : "light";
+    setTheme(newTheme);
+    localStorage.setItem("lifelink-theme", newTheme);
   }
 
-  return (
-    <div className="dash-modal-backdrop" onMouseDown={(event) => {
-      if (event.target === event.currentTarget) onClose();
-    }}>
-      <section className="dash-modal" role="dialog" aria-modal="true" aria-labelledby="create-request-title">
-        <div className="dash-modal-heading">
-          <div>
-            <span className="dash-eyebrow">LIFELINK · DEMO</span>
-            <h2 id="create-request-title">Create Blood Request</h2>
-          </div>
-          <button className="dash-icon-button" type="button" onClick={onClose} aria-label="Close form">
-            <Icon>close</Icon>
-          </button>
-        </div>
+  async function fetchDashboardData() {
+    setLoading(true);
+    setError("");
 
-        <form className="dash-request-form" onSubmit={handleSubmit}>
-          <label>
-            Patient name
-            <input value={patient} onChange={(e) => setPatient(e.target.value)} required placeholder="Enter patient name" />
-          </label>
+    const token = localStorage.getItem("token");
 
-          <div className="dash-form-row">
-            <label>
-              Blood group
-              <select value={group} onChange={(e) => setGroup(e.target.value)}>
-                {["O-", "O+", "A-", "A+", "B-", "B+", "AB-", "AB+"].map((item) => (
-                  <option key={item}>{item}</option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Units needed
-              <input type="number" min="1" max="20" value={units} onChange={(e) => setUnits(e.target.value)} required />
-            </label>
-          </div>
+    if (!token) {
+      setError("Please log in again to view dashboard data.");
+      setLoading(false);
+      return;
+    }
 
-          <label>
-            Hospital
-            <input value={hospital} onChange={(e) => setHospital(e.target.value)} required placeholder="Enter hospital name" />
-          </label>
+    const headers = {
+      Authorization: `Bearer ${token}`,
+    };
 
-          <label>
-            City
-            <input value={city} onChange={(e) => setCity(e.target.value)} required placeholder="Enter city" />
-          </label>
+    try {
+      const [requestResult, donorResult] = await Promise.allSettled([
+        fetch(`${API_URL}/api/requests`, { headers }),
+        fetch(`${API_URL}/api/donors/available/count`, { headers }),
+      ]);
 
-          <label>
-            Urgency
-            <select value={urgency} onChange={(e) => setUrgency(e.target.value)}>
-              <option>Critical</option>
-              <option>Urgent</option>
-              <option>Normal</option>
-            </select>
-          </label>
+      let requestError = "";
 
-          <p className="dash-demo-note">
-            This creates a temporary sample request in this browser session. It does not contact donors or a hospital.
-          </p>
+      if (requestResult.status === "fulfilled") {
+        const response = requestResult.value;
 
-          <div className="dash-modal-actions">
-            <button type="button" className="dash-button secondary" onClick={onClose}>Cancel</button>
-            <button type="submit" className="dash-button primary">
-              <Icon>add</Icon> Add Request
-            </button>
-          </div>
-        </form>
-      </section>
-    </div>
-  );
-}
+        if (response.ok) {
+          const data = await response.json();
 
-export default function Dashboard({ onNavigate, onSignOut }) {
-  const [requests, setRequests] = useState(initialRequests);
-  const [search, setSearch] = useState("");
-  const [urgencyFilter, setUrgencyFilter] = useState("All");
-  const [showCreateForm, setShowCreateForm] = useState(false);
-  const [notice, setNotice] = useState("");
-  const [page, setPage] = useState(1);
+          const list = Array.isArray(data.bloodRequests)
+            ? data.bloodRequests
+            : Array.isArray(data.requests)
+            ? data.requests
+            : Array.isArray(data.data)
+            ? data.data
+            : Array.isArray(data)
+            ? data
+            : [];
 
-  const filteredRequests = useMemo(() => {
-    const query = search.trim().toLowerCase();
+          setRequests(list);
+        } else {
+          requestError = `Requests API returned ${response.status}`;
+        }
+      } else {
+        requestError = "Could not connect to the requests API.";
+      }
 
-    return requests.filter((request) => {
-      const matchesSearch = [
-        request.id,
-        request.patient,
-        request.group,
-        request.hospital,
-        request.city,
-        request.status,
-      ].some((value) => value.toLowerCase().includes(query));
+      if (donorResult.status === "fulfilled") {
+        const response = donorResult.value;
 
-      const matchesUrgency =
-        urgencyFilter === "All" || request.urgency === urgencyFilter;
+        if (response.ok) {
+          const data = await response.json();
 
-      return matchesSearch && matchesUrgency;
-    });
-  }, [requests, search, urgencyFilter]);
+          const count =
+            data.availableDonorCount ??
+            data.count ??
+            data.availableDonors ??
+            data.total ??
+            data.data?.count;
 
-  function createRequest(request) {
-    setRequests((current) => [request, ...current]);
-    setPage(1);
-    setNotice("Sample request added to the dashboard.");
-  }
+          setDonorCount(
+            typeof count === "number" ? count : null
+          );
+        } else {
+          setDonorCount(null);
+        }
+      } else {
+        setDonorCount(null);
+      }
 
-  function exportRequests() {
-    const header = ["Request ID", "Patient", "Blood Group", "Hospital", "City", "Units", "Urgency", "Status"];
-    const rows = filteredRequests.map((r) => [
-      r.id, r.patient, r.group, r.hospital, r.city, r.units, r.urgency, r.status,
-    ]);
-
-    const csv = [header, ...rows]
-      .map((row) => row.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(","))
-      .join("\n");
-
-    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "lifelink-demo-requests.csv";
-    link.click();
-    URL.revokeObjectURL(url);
-    setNotice("Demo requests exported.");
-  }
-
-  function navigateTo(pageName) {
-    if (pageName === "dashboard") return;
-    if (onNavigate) {
-      onNavigate(pageName);
-    } else {
-      setNotice(`${pageName.replaceAll("-", " ")} screen is not connected yet.`);
+      if (requestError) {
+        setError(requestError);
+      }
+    } catch (err) {
+      setError(err.message || "Unable to load dashboard data.");
+    } finally {
+      setLoading(false);
     }
   }
 
-  return (
-    <div className="lifelink-dashboard">
-      <aside className="dash-sidebar">
-        <div>
-          <div className="dash-brand">
-            <div className="dash-brand-mark"><Icon>water_drop</Icon></div>
-            <div>
-              <strong>LifeLink</strong>
-              <span>EMERGENCY BLOOD NETWORK</span>
-            </div>
-          </div>
+  useEffect(() => {
+    fetchDashboardData();
 
-          <nav className="dash-navigation" aria-label="Main navigation">
-            {navigation.map((item) => (
-              <button
-                key={item.page}
-                type="button"
-                className={`dash-nav-item ${item.page === "dashboard" ? "active" : ""}`}
-                onClick={() => navigateTo(item.page)}
-              >
-                <Icon>{item.icon}</Icon>
-                <span>{item.label}</span>
-              </button>
-            ))}
-          </nav>
+    const intervalId = setInterval(() => {
+      fetchDashboardData();
+    }, 15000);
+
+    return () => clearInterval(intervalId);
+  }, []);
+
+  function getStatus(request) {
+    return String(request.status || "unknown").toLowerCase();
+  }
+
+  const openRequests = requests.filter((request) =>
+    ["open", "pending"].includes(getStatus(request))
+  );
+
+  const matchedRequests = requests.filter((request) =>
+    ["matched", "in_transit"].includes(getStatus(request))
+  );
+
+  const fulfilledRequests = requests.filter((request) =>
+    ["fulfilled", "completed"].includes(getStatus(request))
+  );
+
+  const recentRequests = [...requests]
+    .sort(
+      (a, b) =>
+        new Date(b.createdAt || 0) -
+        new Date(a.createdAt || 0)
+    )
+    .slice(0, 5);
+
+  function formatRequestTime(dateValue) {
+    if (!dateValue) return "Time unavailable";
+
+    const date = new Date(dateValue);
+
+    if (Number.isNaN(date.getTime())) {
+      return "Time unavailable";
+    }
+
+    return date.toLocaleString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+
+  const userName =
+    user.name ||
+    user.fullName ||
+    user.username ||
+    user.email ||
+    "User";
+
+  const userRole = user.role || "LifeLink User";
+
+  const avatarLetter = String(userName).charAt(0).toUpperCase();
+
+  const filteredRequests = requests.filter((request) => {
+    const search = navbarSearch.toLowerCase().trim();
+
+    if (!search) return true;
+
+    return [
+      request._id,
+      request.id,
+      request.patientName,
+      request.hospitalName,
+      request.hospital,
+      request.bloodGroup,
+      request.bloodType,
+      request.status,
+    ].some((value) =>
+      String(value || "").toLowerCase().includes(search)
+    );
+  });
+
+  function display(value) {
+    return loading ? "..." : value;
+  }
+
+  return (
+    <div
+      className={`dashboard ${
+        theme === "dark" ? "dark-theme" : ""
+      }`}
+    >
+      <aside className="sidebar">
+        <h2 className="brand">♥ LifeLink</h2>
+        <p className="brand-subtitle">CLINICAL DISPATCH</p>
+
+        <p className="sidebar-label">COMMAND CENTER</p>
+
+        <div
+          className={`nav-item ${
+            activePage === "dashboard" ? "active" : ""
+          }`}
+          onClick={() => setActivePage("dashboard")}
+        >
+          ▦ Overview
         </div>
 
-        <div className="dash-sidebar-bottom">
-          <div className="dash-online">
-            <span className="dash-online-dot" />
-            <span>System Online <b>·</b> 24/7 Dispatch</span>
-          </div>
-          <button
-            className="dash-nav-item dash-signout"
-            type="button"
-            onClick={() => {
-              if (onSignOut) onSignOut();
-              else if (onNavigate) onNavigate("login");
-              else setNotice("Connect this button to your existing sign-out flow.");
-            }}
-          >
-            <Icon>logout</Icon><span>Sign Out</span>
-          </button>
+        <div
+          className={`nav-item ${
+            activePage === "requests" ? "active" : ""
+          }`}
+          onClick={() => setActivePage("requests")}
+        >
+          ♡ Blood Requests
+        </div>
+
+        <div className="nav-item" title="Donor page not connected yet">
+          ♧ Donors
+        </div>
+
+        <div className="nav-item" title="Analytics page not connected yet">
+          ▥ Analytics
+        </div>
+
+        <div className="nav-item" title="Settings page not connected yet">
+          ⚙ Settings
+        </div>
+
+        <div className="sidebar-bottom">
+          <strong>CODE RED PROTOCOL</strong>
+          <p>Emergency blood network</p>
         </div>
       </aside>
 
-      <div className="dash-main">
-        <header className="dash-topbar">
-          <div className="dash-breadcrumb">
-            <span className="dash-top-logo"><Icon>water_drop</Icon></span>
-            <strong>LifeLink Command</strong>
-            <span className="dash-breadcrumb-divider">/</span>
-            <span>Triage Network</span>
+      <main className="main-content">
+        <header className="topbar">
+          <div className="navbar-search">
+            <span>⌕</span>
+            <input
+              type="text"
+              placeholder="Search requests, hospitals, blood groups..."
+              value={navbarSearch}
+              onChange={(event) =>
+                setNavbarSearch(event.target.value)
+              }
+            />
           </div>
 
-          <label className="dash-search">
-            <Icon>search</Icon>
-            <input
-              value={search}
-              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-              placeholder="Search requests, donor IDs, hospitals..."
-              aria-label="Search requests"
-            />
-            {search && (
-              <button type="button" onClick={() => setSearch("")} aria-label="Clear search">
-                <Icon>close</Icon>
-              </button>
-            )}
-          </label>
+          <div className="navbar-actions">
+            <button
+              className="theme-button"
+              onClick={toggleTheme}
+              title="Toggle dark mode"
+            >
+              {theme === "light" ? "🌙" : "☀️"}
+            </button>
 
-          <div className="dash-top-actions">
-            <button className="dash-notification-button" type="button" onClick={() => setNotice("You have 3 demo notifications.")} aria-label="Notifications">
-              <Icon>notifications</Icon><span>3</span>
-            </button>
-            <button className="dash-button primary create-top-button" type="button" onClick={() => setShowCreateForm(true)}>
-              <Icon>add</Icon><span>Create Request</span>
-            </button>
-            <div className="dash-profile">
-              <div className="dash-avatar"><Icon>person</Icon></div>
-              <div><strong>Dr. Sarah Jenkins</strong><span>Head Administrator</span></div>
+            <div className="notification-wrapper">
+              <button
+                className="notification-button"
+                onClick={() =>
+                  setShowNotifications(!showNotifications)
+                }
+                aria-label="Toggle notifications"
+              >
+                ♧
+              </button>
+
+              {showNotifications && (
+                <div className="notification-dropdown">
+                  <h3>Notifications</h3>
+                  <p>
+                    {loading
+                      ? "Loading request information..."
+                      : error
+                      ? "Dashboard data could not be loaded."
+                      : `${openRequests.length} open or pending requests currently found.`}
+                  </p>
+                  <button
+                    onClick={() => {
+                      setActivePage("requests");
+                      setShowNotifications(false);
+                    }}
+                  >
+                    View Blood Requests
+                  </button>
+                </div>
+              )}
             </div>
+
+            <div className="profile-info">
+              <div className="profile-avatar">{avatarLetter}</div>
+              <div className="profile-text">
+                <strong>{userName}</strong>
+                <span>{userRole}</span>
+              </div>
+            </div>
+
+            <button className="logout-button" onClick={onLogout}>
+              Logout
+            </button>
           </div>
         </header>
 
-        <main className="dash-content">
-          <section className="dash-page-heading">
-            <div>
-              <div className="dash-eyebrow"><span className="dash-live-dot" /> Emergency Incident Operations Center</div>
-              <h1>Dashboard Overview</h1>
-              <p>Live Emergency Dispatch &amp; Blood Availability Overview Across Regional Trauma Hubs</p>
-            </div>
-            <div className="dash-heading-actions">
-              <span className="dash-updated"><Icon>sync</Icon> Sample data · demo mode</span>
-              <button className="dash-button primary" type="button" onClick={() => setNotice("Fast triage is a visual demo; no real dispatch was sent.")}>
-                <Icon>e911_emergency</Icon> Fast Triage Dispatch
+        {activePage === "requests" ? (
+          <BloodRequests />
+        ) : (
+          <section className="dashboard-page">
+            <div className="welcome-section">
+              <div>
+                <p className="eyebrow">LIFELINK COMMAND CENTER</p>
+                <h1>Dashboard Overview</h1>
+                <p className="welcome-description">
+                  Monitor blood requests and availability across the network.
+                </p>
+              </div>
+
+              <button
+                className="refresh-button"
+                onClick={fetchDashboardData}
+                disabled={loading}
+              >
+                {loading ? "Refreshing..." : "↻ Refresh Data"}
               </button>
             </div>
-          </section>
 
-          {notice && (
-            <div className="dash-notice" role="status">
-              <Icon>info</Icon><span>{notice}</span>
-              <button type="button" onClick={() => setNotice("")} aria-label="Dismiss message"><Icon>close</Icon></button>
+            {error && (
+              <div className="error-message">
+                <strong>Unable to load all dashboard data</strong>
+                <p>{error}</p>
+                <button onClick={fetchDashboardData}>
+                  Try Again
+                </button>
+              </div>
+            )}
+
+            <div className="stats-grid">
+              <div className="stat-card">
+                <div className="stat-heading">
+                  <span>Open Requests</span>
+                  <span className="stat-icon red">♡</span>
+                </div>
+                <h2>{display(openRequests.length)}</h2>
+                <p>Requests awaiting fulfillment</p>
+              </div>
+
+              <div className="stat-card">
+                <div className="stat-heading">
+                  <span>Matched / In Transit</span>
+                  <span className="stat-icon blue">⇄</span>
+                </div>
+                <h2>{display(matchedRequests.length)}</h2>
+                <p>Requests with a match or in transit</p>
+              </div>
+
+              <div className="stat-card">
+                <div className="stat-heading">
+                  <span>Fulfilled Requests</span>
+                  <span className="stat-icon green">✓</span>
+                </div>
+                <h2>{display(fulfilledRequests.length)}</h2>
+                <p>Completed requests</p>
+              </div>
+
+              <div className="stat-card">
+                <div className="stat-heading">
+                  <span>Available Donors</span>
+                  <span className="stat-icon purple">♧</span>
+                </div>
+                <h2>
+                  {loading
+                    ? "..."
+                    : donorCount === null
+                    ? "N/A"
+                    : donorCount}
+                </h2>
+                <p>
+                  {donorCount === null
+                    ? "Donor count unavailable for this account"
+                    : "Available donor count from API"}
+                </p>
+              </div>
             </div>
-          )}
 
-          <section className="dash-stats-grid">
-            <StatCard icon="emergency" label="Open Requests" value="28" badge="+4 today" note="High Urgency Load" color="red" />
-            <StatCard icon="handshake" label="Matched Requests" value="64" badge="85% match rate" note="18 In Transit" color="blue" />
-            <StatCard icon="task_alt" label="Fulfilled Requests" value="142" badge="This month" note="+18.4% vs last mo" color="green" />
-            <StatCard icon="groups" label="Registered Donors" value="1,840" badge="+32 verified" note="412 On Standby" color="gray" />
-          </section>
-
-          <div className="dash-content-grid">
-            <div className="dash-left-column">
-              <section className="dash-emergency-banner">
-                <div className="dash-emergency-icon"><Icon>notification_important</Icon></div>
-                <div className="dash-emergency-copy">
-                  <h2>Severe O-Negative Deficit in Sector 4</h2>
-                  <p>Demo alert: immediate attention required for the sample regional network.</p>
-                </div>
-                <button type="button" onClick={() => navigateTo("donors-notifications")}>Dispatch Alerts</button>
-              </section>
-
-              <section className="dash-panel dash-requests-panel">
-                <div className="dash-panel-heading">
-                  <div>
-                    <h2>Recent Blood Requests</h2>
-                    <p>Sample trauma admissions and donor requisition records</p>
-                  </div>
-                  <div className="dash-table-controls">
-                    <label className="dash-filter">
-                      <Icon>filter_list</Icon>
-                      <select value={urgencyFilter} onChange={(e) => { setUrgencyFilter(e.target.value); setPage(1); }} aria-label="Filter by urgency">
-                        <option value="All">All Triage Levels</option>
-                        <option value="Critical">Critical Only</option>
-                        <option value="Urgent">Urgent Only</option>
-                        <option value="Normal">Normal Only</option>
-                      </select>
-                    </label>
-                    <button type="button" className="dash-button secondary export-button" onClick={exportRequests}>
-                      <Icon>file_download</Icon> Export
-                    </button>
-                  </div>
+            <div className="request-section">
+              <div className="section-heading">
+                <div>
+                  <h2>Blood Request Queue</h2>
+                  <p>
+                    {navbarSearch.trim()
+                      ? `Search results for "${navbarSearch}"`
+                      : "Latest requests received from the API"}
+                  </p>
                 </div>
 
-                <div className="dash-table-wrap">
-                  <table className="dash-requests-table">
+                <button
+                  className="view-all-button"
+                  onClick={() => setActivePage("requests")}
+                >
+                  View All Requests →
+                </button>
+              </div>
+
+              {loading ? (
+                <div className="empty-state">
+                  Loading requests from server...
+                </div>
+              ) : error ? (
+                <div className="empty-state">
+                  Requests could not be loaded. Check the error above.
+                </div>
+              ) : filteredRequests.length === 0 ? (
+                <div className="empty-state">
+                  <span className="empty-icon">♡</span>
+                  <h3>No blood requests found</h3>
+                  <p>
+                    {navbarSearch.trim()
+                      ? "Try another search term."
+                      : "The API returned no requests to display."}
+                  </p>
+                </div>
+              ) : (
+                <div className="table-wrapper">
+                  <table className="requests-table">
                     <thead>
                       <tr>
-                        <th>Request ID</th><th>Patient Name</th><th>Group</th><th>Hospital</th>
-                        <th>City</th><th>Units</th><th>Urgency</th><th>Status</th><th>Action</th>
+                        <th>Request / Hospital</th>
+                        <th>Blood Group</th>
+                        <th>Units</th>
+                        <th>Urgency</th>
+                        <th>Status</th>
                       </tr>
                     </thead>
+
                     <tbody>
-                      {filteredRequests.length > 0 ? filteredRequests.map((request) => (
-                        <tr key={request.id}>
-                          <td className="dash-request-id">#{request.id}</td>
-                          <td><div className="dash-patient-name">{request.patient}</div><span className="dash-table-subtitle">{request.ward}</span></td>
-                          <td><span className={`dash-blood-group ${request.group === "O-" || request.group === "AB-" ? "negative" : ""}`}>{request.group}</span></td>
-                          <td className="dash-hospital-cell">{request.hospital}</td>
-                          <td>{request.city}</td>
-                          <td className="dash-units">{request.units}</td>
-                          <td><StatusBadge>{request.urgency}</StatusBadge></td>
-                          <td><StatusBadge>{request.status}</StatusBadge></td>
-                          <td><button className="dash-view-link" type="button" onClick={() => {
-                            if (onNavigate) onNavigate("request-details", request);
-                            else setNotice(`Selected sample request #${request.id}. Connect Request Details to view more.`);
-                          }}>View <Icon>arrow_forward</Icon></button></td>
+                      {filteredRequests.slice(0, 8).map((request, index) => (
+                        <tr key={request._id || request.id || index}>
+                          <td>
+                            <strong>
+                              {request.hospitalName ||
+                                request.hospital ||
+                                request.patientName ||
+                                request._id ||
+                                request.id ||
+                                "Request"}
+                            </strong>
+                            <span className="table-subtitle">
+                              {request._id || request.id || "—"}
+                            </span>
+                          </td>
+
+                          <td>
+                            {request.bloodGroup ||
+                              request.bloodType ||
+                              "—"}
+                          </td>
+
+                          <td>
+                            {request.units ??
+                              request.unitsNeeded ??
+                              "—"}
+                          </td>
+
+                          <td>
+                            {request.urgency || request.priority || "—"}
+                          </td>
+
+                          <td>
+                            <span className={`status-pill ${getStatus(request).replace(/\s+/g, "-")}`}>
+                              {request.status || "Unknown"}
+                            </span>
+                          </td>
                         </tr>
-                      )) : (
-                        <tr><td colSpan="9" className="dash-empty">No requests match your search or filter.</td></tr>
-                      )}
+                      ))}
                     </tbody>
                   </table>
                 </div>
-
-                <div className="dash-table-footer">
-                  <span>Showing {filteredRequests.length} sample request{filteredRequests.length === 1 ? "" : "s"} of {requests.length}</span>
-                  <div className="dash-pagination">
-                    <button type="button" disabled={page === 1} onClick={() => setPage(1)}>Previous</button>
-                    <button type="button" className="selected" onClick={() => setPage(1)}>{page}</button>
-                    <button type="button" onClick={() => setNotice("Only the first sample page is available in this prototype.")}>Next</button>
-                  </div>
-                </div>
-              </section>
-
-              <section className="dash-quick-actions">
-                <button type="button" onClick={() => navigateTo("donors-notifications")}>
-                  <span className="dash-quick-icon red"><Icon>campaign</Icon></span>
-                  <span><strong>Regional Broadcast</strong><small>Alert nearby donors (demo)</small></span>
-                </button>
-                <button type="button" onClick={() => setNotice("Courier availability shown here is sample data.")}>
-                  <span className="dash-quick-icon blue"><Icon>local_shipping</Icon></span>
-                  <span><strong>Drone Dispatch</strong><small>3 couriers available (demo)</small></span>
-                </button>
-                <button type="button" onClick={() => setNotice("Compatibility testing must be performed by qualified medical services.")}>
-                  <span className="dash-quick-icon green"><Icon>biotech</Icon></span>
-                  <span><strong>Lab Crossmatch</strong><small>Compatibility workflow</small></span>
-                </button>
-              </section>
+              )}
             </div>
 
-            <div className="dash-right-column">
-              <section className="dash-panel dash-inventory-panel">
-                <div className="dash-panel-title">
-                  <div><h2>Blood Inventory Health</h2><p>Sample regional bank reserve levels</p></div>
-                  <Icon>water_drop</Icon>
+            <div className="dispatch-feed-section">
+              <div className="section-heading">
+                <div>
+                  <h2>Live Dispatch Feed</h2>
+                  <p>Latest blood request activity from the backend</p>
                 </div>
-                <div className="dash-inventory-list">
-                  {inventory.map((item) => (
-                    <div className={`dash-inventory-item ${item.color === "red" ? "critical" : ""}`} key={item.group}>
-                      <div className="dash-inventory-labels">
-                        <strong><span className={`dash-legend-dot ${item.color}`} />Group {item.group}{item.color === "red" ? " (Critical)" : ""}</strong>
-                        <span><b>{item.percentage}%</b> <small>{item.label}</small></span>
+
+                <span className="live-indicator">
+                  <span className="live-dot"></span>
+                  API Updates
+                </span>
+              </div>
+
+              {loading ? (
+                <div className="empty-state">
+                  Loading recent activity...
+                </div>
+              ) : recentRequests.length === 0 ? (
+                <div className="empty-state">
+                  <h3>No recent activity</h3>
+                  <p>
+                    New blood requests will appear here when returned by the API.
+                  </p>
+                </div>
+              ) : (
+                <div className="dispatch-feed-list">
+                  {recentRequests.map((request, index) => {
+                    const urgency = String(
+                      request.urgency || "normal"
+                    ).toLowerCase();
+
+                    const status = getStatus(request);
+
+                    return (
+                      <div
+                        className="dispatch-feed-item"
+                        key={request._id || request.id || index}
+                      >
+                        <div className={`dispatch-feed-icon ${urgency}`}>
+                          {urgency === "emergency"
+                            ? "!"
+                            : urgency === "urgent"
+                            ? "↑"
+                            : "•"}
+                        </div>
+
+                        <div className="dispatch-feed-details">
+                          <strong>
+                            {urgency === "emergency"
+                              ? "Emergency blood request"
+                              : urgency === "urgent"
+                              ? "Urgent blood request"
+                              : "Blood request received"}
+                          </strong>
+
+                          <p>
+                            {request.bloodGroup || "Blood group unavailable"}
+                            {" · "}
+                            {request.city || "City unavailable"}
+                            {" · "}
+                            {request.units ?? "—"} units
+                          </p>
+
+                          <div className="dispatch-feed-meta">
+                            <span className={`status-pill ${status}`}>
+                              {status}
+                            </span>
+
+                            <span>
+                              {formatRequestTime(request.createdAt)}
+                            </span>
+                          </div>
+                        </div>
                       </div>
-                      <div className="dash-progress-track">
-                        <div className={`dash-progress-fill ${item.color}`} style={{ width: `${item.percentage}%` }} />
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
-              </section>
-
-              <section className="dash-panel">
-                <div className="dash-panel-title">
-                  <div><h2>Request Status Breakdown</h2><p>Illustrative distribution</p></div>
-                  <span className="dash-total-tag">234 Total</span>
-                </div>
-                <div className="dash-stacked-bar" aria-label="Open 12%, Matched 28%, Fulfilled 55%, Cancelled 5%">
-                  <span className="open-bar" /><span className="matched-bar" /><span className="fulfilled-bar" /><span className="cancelled-bar" />
-                </div>
-                <div className="dash-status-legend">
-                  <span><i className="open-bar" />Open (12%)</span>
-                  <span><i className="matched-bar" />Matched (28%)</span>
-                  <span><i className="fulfilled-bar" />Fulfilled (55%)</span>
-                  <span><i className="cancelled-bar" />Cancelled (5%)</span>
-                </div>
-              </section>
-
-              <section className="dash-panel">
-                <div className="dash-panel-title">
-                  <div><h2>Dispatch Hotspots</h2><p>Illustrative 35 km trauma network</p></div>
-                  <Icon>radar</Icon>
-                </div>
-                <div className="dash-radar">
-                  <div className="dash-radar-ring ring-large" />
-                  <div className="dash-radar-ring ring-medium" />
-                  <div className="dash-radar-ring ring-small" />
-                  <div className="dash-radar-cross horizontal" />
-                  <div className="dash-radar-cross vertical" />
-                  <span className="dash-radar-point point-one" title="St. Jude Trauma" />
-                  <span className="dash-radar-point point-two" title="Memorial Health" />
-                  <span className="dash-radar-point point-three" title="City General" />
-                  <span className="dash-radar-point point-four" title="Metro Children's" />
-                  <span className="dash-radar-center"><Icon>local_hospital</Icon></span>
-                </div>
-                <div className="dash-hotspot-list">
-                  {hotspots.map((spot) => (
-                    <div className="dash-hotspot-row" key={spot.name}>
-                      <div><span className={`dash-legend-dot ${spot.color}`} /><strong>{spot.name}</strong><StatusBadge>{spot.level}</StatusBadge></div>
-                      <span>{spot.distance}</span>
-                    </div>
-                  ))}
-                </div>
-                <p className="dash-demo-note">This is a decorative panel, not a real map or verified distance calculation.</p>
-              </section>
-
-              <section className="dash-panel dash-activity-panel">
-                <div className="dash-panel-title">
-                  <div><h2>Live Network Activity</h2><p>Sample dispatch activity feed</p></div>
-                  <span className="dash-live-label">DEMO</span>
-                </div>
-                <div className="dash-activity-list">
-                  {activities.map((activity, index) => (
-                    <div className="dash-activity-item" key={index}>
-                      <span className={`dash-activity-icon ${activity.type}`}><Icon>{activity.icon}</Icon></span>
-                      <div><p>{activity.title}</p><small>{activity.detail}</small></div>
-                    </div>
-                  ))}
-                </div>
-              </section>
+              )}
             </div>
-          </div>
 
-          <footer className="dash-footer">
-            <span>LifeLink · Admin Dashboard Prototype</span>
-            <span>Sample data only · Not connected to live emergency services</span>
-          </footer>
-        </main>
-      </div>
-
-      {showCreateForm && (
-        <CreateRequestModal
-          onClose={() => setShowCreateForm(false)}
-          onCreate={createRequest}
-        />
-      )}
+            <p className="dashboard-footer">
+              LifeLink Emergency Blood Network · Data loaded from backend API
+            </p>
+          </section>
+        )}
+      </main>
     </div>
   );
 }
+
+export default Dashboard;

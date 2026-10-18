@@ -1,121 +1,209 @@
-
 import { useState } from "react";
 import "./Login.css";
 
-function Login({ onRegisterPage, onLogin, initialMessage }) {
+function Login({ onLogin, loading, error, onGoRegister }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [message, setMessage] = useState(initialMessage || "");
 
   function handleSubmit(event) {
     event.preventDefault();
-
-    setMessage("");
-
-    if (!email.trim() || !password) {
-      setMessage("Please enter your email and password.");
-      return;
-    }
-
     onLogin(email, password);
-    }
+  }
 
   return (
-    <main className="login-page">
-      <section className="login-card">
-        <div className="login-logo">🩸LifeLink</div>
+    <div className="auth-page">
+      <header className="auth-topbar">
+        <div className="auth-brand">
+          
+<div className="lifelink-logo">
+  <div className="logo-icon">
+    <svg
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-label="LifeLink blood drop logo"
+    >
+      <path d="M12 2.5C10.2 5.7 5.5 10.1 5.5 14.5a6.5 6.5 0 0 0 13 0C18.5 10.1 13.8 5.7 12 2.5Z" />
+      <path
+        d="M8.5 14.5a3.5 3.5 0 0 0 3.5 3.5"
+        fill="none"
+        stroke="#FFFFFF"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+    </svg>
+  </div>
 
-        <p className="login-badge">
-          Emergency Blood Network
-        </p>
+  <div>
+    <h2 className="logo-name">LifeLink <span>DISPATCH</span></h2>
+    <p className="logo-subtitle">Regional Blood Network</p>
+  </div>
+</div>
+        </div>
 
-        <h1>Welcome Back</h1>
+        <div className="security-badges">
+          <span>♢ Secure Access</span>
+          <span>• Encrypted Connection</span>
+        </div>
 
-        <p className="login-description">
-          Sign in to the LifeLink Administrator Portal.
-        </p>
+        <div className="emergency-line">
+          <span className="emergency-dot">●</span>
+          <div>
+            <small>Emergency Line</small>
+            <strong>1800-180-260</strong>
+          </div>
+        </div>
+      </header>
 
-        {message && (
-          <p className="login-message" role="status">
-            {message}
+      <main className="auth-card">
+        <section className="auth-visual">
+          <div className="network-status">
+            <span>● NETWORK ACCESS</span>
+            <span>Blood Support Network</span>
+          </div>
+
+          <div className="visual-brand">
+            <div className="visual-logo">⌁</div>
+            <div>
+              <h2>LifeLink</h2>
+              <p>CLINICAL DISPATCH</p>
+            </div>
+          </div>
+
+          <h1>Connecting Donors.<br />Saving Lives.</h1>
+
+          <p className="visual-description">
+            A connected blood support network helping coordinate
+            requests, donors and emergency response.
           </p>
-        )}
 
-        <form onSubmit={handleSubmit}>
-          <label htmlFor="email">
-            Institutional Email
-          </label>
+          <div className="visual-info">
+            <span className="info-label">OUR MISSION</span>
+            <h3>Every Drop Matters</h3>
+            <p>
+              Bringing people and blood support services together
+              when every moment counts.
+            </p>
+          </div>
 
-          <input
-            id="email"
-            type="email"
-            placeholder="admin@lifelink.org"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-          />
+          <div className="visual-image">
+            <img
+              src="https://images.unsplash.com/photo-1615461066841-6116e61058f4?auto=format&fit=crop&w=1000&q=80"
+              alt="Blood donation equipment in a clinical setting"
+            />
+            <div className="image-caption">
+              <span>OUR NETWORK</span>
+              <h3>Support When It Matters</h3>
+            </div>
+          </div>
 
-          <label htmlFor="password">
-            Password
-          </label>
+          <div className="visual-disclaimer">
+            <span>ⓘ</span>
+            <p>
+              Authorized access only. Please use your registered
+              account to continue.
+            </p>
+          </div>
 
-          <div className="password-wrapper">
+          <div className="visual-footer">
+            <span>LifeLink Blood Network</span>
+            <span>Secure Portal</span>
+          </div>
+        </section>
+
+        <section className="auth-form-panel">
+          <div className="form-heading">
+            <span className="section-eyebrow">SECURE ACCESS POINT</span>
+            <h1>Welcome Back</h1>
+            <p>Sign in to access your LifeLink account.</p>
+          </div>
+
+          <div className="auth-tabs">
+            <button className="auth-tab selected" type="button">
+              Sign In
+            </button>
+            <button
+              className="auth-tab"
+              type="button"
+              onClick={onGoRegister}
+            >
+              Create Account →
+            </button>
+          </div>
+
+          <div className="protocol-banner">
+            <span>◷</span>
+            <p>
+              <strong>Secure Session:</strong> Sign in using your
+              registered email and password.
+            </p>
+          </div>
+
+          <form className="auth-form" onSubmit={handleSubmit}>
+            <label htmlFor="login-email">Email Address</label>
             <input
-              id="password"
-              type={showPassword ? "text" : "password"}
-              placeholder="Enter your password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
+              id="login-email"
+              type="email"
+              placeholder="Enter your registered email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              autoComplete="email"
+              required
             />
 
-            <button
-              type="button"
-              className="show-password"
-              onClick={() => setShowPassword(!showPassword)}
-            >
-              {showPassword ? "Hide" : "Show"}
-            </button>
-          </div>
+            <div className="password-label">
+              <label htmlFor="login-password">Password</label>
+            </div>
 
-          <div className="login-options">
-            <label className="remember-label">
-              <input type="checkbox" />
-              Remember me
-            </label>
-
-            <button
-              type="button"
-              className="forgot-button"
-              onClick={() =>
-                setMessage("Password recovery is not connected yet.")
-              }
-            >
-              Forgot password?
-            </button>
-          </div>
-
-          <button type="submit" className="login-button">
-            Sign In to Dashboard
-          </button>
-        </form>
-
-            <p className="signup-text">
-              New to LifeLink?{" "}
+            <div className="password-input">
+              <input
+                id="login-password"
+                type={showPassword ? "text" : "password"}
+                placeholder="Enter your password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                autoComplete="current-password"
+                required
+              />
               <button
                 type="button"
-                className="signup-link"
-                onClick={onRegisterPage}
+                onClick={() => setShowPassword(!showPassword)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
               >
-                Create an account
+                {showPassword ? "Hide" : "Show"}
               </button>
-            </p>
+            </div>
 
+            {error && <p className="auth-error">{error}</p>}
 
-        <p className="login-footer">
-          LifeLink · Emergency Response Network
-        </p>
-      </section>
-    </main>
+            <button className="auth-submit" type="submit" disabled={loading}>
+              {loading ? "Signing In..." : "♙  Sign In to LifeLink"}
+            </button>
+          </form>
+
+          <p className="register-prompt">
+            New to LifeLink?{" "}
+            <button type="button" onClick={onGoRegister}>
+              Create your account
+            </button>
+          </p>
+
+          <div className="form-bottom">
+            <span>● Secure Access</span>
+            <span>• Privacy Protected</span>
+            <span>♧ Blood Support Network</span>
+          </div>
+        </section>
+      </main>
+
+      <footer className="auth-page-footer">
+        <span>© LifeLink · Emergency Blood Network</span>
+        <div>
+          <span>♧</span>
+          <strong>24/7 Dispatch Hotline: 1800-180-260</strong>
+        </div>
+      </footer>
+    </div>
   );
 }
 

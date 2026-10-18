@@ -1,117 +1,29 @@
+@import "./Login.css";
 
-.register-page {
-  min-height: 100vh;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 24px;
-  background: #f7f8fa;
-  font-family: Arial, sans-serif;
+.register-panel {
+  padding-top: 30px;
 }
 
-.register-card {
-  width: 100%;
-  max-width: 440px;
-  padding: 32px;
-  background: white;
-  border: 1px solid #e5e7eb;
-  border-radius: 18px;
-  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.08);
+.register-panel .form-heading {
+  margin-bottom: 14px;
 }
 
-.register-logo {
-  margin: 0;
-  color: #d62839;
-  text-align: center;
-  font-size: 28px;
+.register-panel .auth-tabs {
+  margin-bottom: 16px;
 }
 
-.register-badge {
-  width: fit-content;
-  margin: 14px auto 24px;
-  padding: 8px 12px;
-  border-radius: 20px;
-  background: #fff0f1;
-  color: #a61b2b;
-  font-size: 12px;
+.register-panel .protocol-banner {
+  margin-bottom: 15px;
 }
 
-.register-card h1 {
-  margin-bottom: 8px;
-  text-align: center;
-  color: #202124;
+.register-panel .auth-form {
+  gap: 7px;
 }
 
-.register-description {
-  margin-bottom: 22px;
-  color: #6b7280;
-  text-align: center;
-  font-size: 14px;
+.register-panel .auth-form input {
+  min-height: 41px;
 }
 
-.register-card form > label {
-  display: block;
-  margin: 15px 0 7px;
-  font-size: 14px;
-  font-weight: bold;
-  color: #30343b;
-}
-
-.register-card form > input {
-  width: 100%;
-  padding: 12px;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
-  font-size: 14px;
-}
-
-.register-card input:focus {
-  outline: 2px solid #f3a0a8;
-  border-color: #d62839;
-}
-
-.register-button {
-  width: 100%;
-  margin-top: 24px;
-  padding: 14px;
-  border: none;
-  border-radius: 8px;
-  background: #d62839;
-  color: white;
-  font-weight: bold;
-  cursor: pointer;
-}
-
-.register-button:hover {
-  background: #a61b2b;
-}
-
-.register-error {
-  padding: 10px;
-  border-radius: 8px;
-  background: #fff0f1;
-  color: #a61b2b;
-  font-size: 13px;
-}
-
-.register-footer {
-  margin-top: 22px;
-  text-align: center;
-  color: #6b7280;
-  font-size: 13px;
-}
-
-.register-footer button {
-  padding: 0;
-  border: none;
-  background: none;
-  color: #d62839;
-  font-weight: bold;
-  cursor: pointer;
-}
-
-@media (max-width: 480px) {
-  .register-card {
-    padding: 24px;
-  }
+.register-panel .register-prompt {
+  margin: 14px 0;
 }

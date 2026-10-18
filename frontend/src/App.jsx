@@ -1,71 +1,112 @@
-
 import { useState } from "react";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
 
+const API_URL = "https://lifelink-backend-8onj.onrender.com";
+
 function App() {
-  const [page, setPage] = useState("login");
-  const [account, setAccount] = useState(null);
-  const [notice, setNotice] = useState("");
+  const [page, setPage] = useState(
+    localStorage.getItem("token") ? "dashboard" : "login"
+  );
 
-  function handleCreateAccount(newAccount) {
-    if (account && account.email.toLowerCase() === newAccount.email.toLowerCase()) {
-      setNotice("An account with this email already exists in this demo.");
-      setPage("login");
-      return;
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleLogin(email, password) {
+    setLoading(true);
+    setError("");
+
+    try {
+      const response = await fetch(`${API_URL}/api/auth/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success || !data.token) {
+        throw new Error(data.message || "Login failed");
+      }
+
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("user", JSON.stringify(data.user));
+
+      setPage("dashboard");
+    } catch (err) {
+      setError(err.message || "Unable to connect to the server.");
+    } finally {
+      setLoading(false);
     }
+  }
 
-    setAccount(newAccount);
-    setNotice("Account created! You can now sign in.");
+  async function handleRegister(formData) {
+    setLoading(true);
+    setError("");
+
+    try {
+      const response = await fetch(`${API_URL}/api/auth/register`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(formData),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || "Registration failed");
+      }
+
+      setError("");
+      setPage("login");
+    } catch (err) {
+      setError(err.message || "Registration failed.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function handleLogout() {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    setError("");
     setPage("login");
   }
 
-  
-  
-function handleLogin(email, password) {
-  if (
-    account &&
-    account.email.trim().toLowerCase() === email.trim().toLowerCase() &&
-    account.password === password
-  ) {
-    setNotice("");
-    setPage("dashboard");
-  } else {
-    setNotice(
-      "Account not found or password is incorrect. Please register first."
-    );
-  }
-}
-
-
   if (page === "dashboard") {
-  return <Dashboard onSignOut={() => setPage("login")} />;
+    return <Dashboard onLogout={handleLogout} />;
   }
 
   if (page === "register") {
     return (
       <Register
-        onSignIn={() => {
-          setNotice("");
+        onRegister={handleRegister}
+        loading={loading}
+        error={error}
+        onGoLogin={() => {
+          setError("");
           setPage("login");
         }}
-        onCreateAccount={handleCreateAccount}
       />
     );
   }
 
   return (
     <Login
-      onRegisterPage={() => {
-        setNotice("");
+      onLogin={handleLogin}
+      loading={loading}
+      error={error}
+      onGoRegister={() => {
+        setError("");
         setPage("register");
       }}
-      onLogin={handleLogin}
-      initialMessage={notice}
     />
   );
 }
 
 export default App;
-
