@@ -6,6 +6,7 @@ import '../../core/format.dart';
 import '../../core/theme.dart';
 import '../../models/blood_request.dart';
 import '../../models/responder.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/request_provider.dart';
 import '../../providers/tracking_provider.dart';
 import '../../widgets/hospital_map.dart';
@@ -144,7 +145,10 @@ class _RequestTrackingScreenState extends State<RequestTrackingScreen> {
                 decoration: BoxDecoration(
                     color: kPrimaryDark,
                     borderRadius: BorderRadius.circular(18)),
-                child: Text(r.bloodGroup,
+                child: Text(
+                    r.bloodGroup.trim().isNotEmpty
+                        ? r.bloodGroup.trim()
+                        : 'Blood',
                     style: const TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.w800,
@@ -168,14 +172,26 @@ class _RequestTrackingScreenState extends State<RequestTrackingScreen> {
                       ],
                     ),
                     const SizedBox(height: 8),
-                    Text(r.hospitalName,
+                    Text(
+                        r.hospitalName.trim().isNotEmpty
+                            ? r.hospitalName.trim()
+                            : (r.city.trim().isNotEmpty
+                                ? 'Hospital in ${r.city.trim()}'
+                                : 'Emergency Blood Request'),
                         style: const TextStyle(
                             fontSize: 17,
                             fontWeight: FontWeight.w800,
                             color: kInk)),
                     const SizedBox(height: 2),
-                    Text('${r.city} \u2022 ${timeAgo(r.createdAt)}',
-                        style: const TextStyle(fontSize: 12, color: kMuted)),
+                    () {
+                      final meta = [
+                        if (r.city.trim().isNotEmpty) r.city.trim(),
+                        if (r.createdAt != null) timeAgo(r.createdAt),
+                      ];
+                      if (meta.isEmpty) return const SizedBox.shrink();
+                      return Text(meta.join(' \u2022 '),
+                          style: const TextStyle(fontSize: 12, color: kMuted));
+                    }(),
                   ],
                 ),
               ),
@@ -216,8 +232,10 @@ class _RequestTrackingScreenState extends State<RequestTrackingScreen> {
     final steps = <_TimelineStep>[
       _TimelineStep(
         title: 'Broadcast Sent',
-        subtitle:
-            'Alert sent to matching donors in ${r.city} \u2022 ${timeAgo(r.createdAt)}',
+        subtitle: [
+          'Alert sent to matching donors in ${r.city.trim().isNotEmpty ? r.city.trim() : 'this city'}',
+          if (r.createdAt != null) timeAgo(r.createdAt),
+        ].join(' \u2022 '),
         state: _StepState.done,
       ),
       _TimelineStep(
@@ -304,7 +322,9 @@ class _RequestTrackingScreenState extends State<RequestTrackingScreen> {
         const SizedBox(height: 10),
         if (p.responders.isEmpty)
           Text(
-              'No donor has responded yet. Matching donors in ${p.request?.city ?? 'your city'} have been alerted.',
+              (p.request != null && p.request!.city.trim().isNotEmpty)
+                  ? 'No donor has responded yet. Matching donors in ${p.request!.city.trim()} have been alerted.'
+                  : 'No donor has responded yet. Matching donors in your city have been alerted.',
               style: const TextStyle(color: kMuted))
         else
           for (final d in p.responders) ...[
@@ -316,6 +336,10 @@ class _RequestTrackingScreenState extends State<RequestTrackingScreen> {
   }
 
   List<Widget> _actions(BloodRequest r) {
+    final user = context.read<AuthProvider>().user;
+    // Status overrides via /admin/requests/:id/status are restricted to admin role
+    if (user == null || !user.isAdmin) return const [];
+
     return [
       if (r.status == 'matched')
         PrimaryButton(

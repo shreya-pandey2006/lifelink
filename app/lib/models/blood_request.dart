@@ -1,5 +1,6 @@
 class BloodRequest {
   final String id;
+  final String? requesterId;
   final String bloodGroup;
   final int units;
   final int unitsAccepted;
@@ -15,6 +16,7 @@ class BloodRequest {
 
   const BloodRequest({
     required this.id,
+    this.requesterId,
     required this.bloodGroup,
     required this.units,
     required this.unitsAccepted,
@@ -31,24 +33,56 @@ class BloodRequest {
 
   bool get isOpen => status == 'open';
 
-  factory BloodRequest.fromJson(Map<String, dynamic> j) => BloodRequest(
-        id: (j['id'] ?? j['_id'] ?? '').toString(),
-        bloodGroup: (j['bloodGroup'] ?? j['blood_group'] ?? '').toString(),
-        units: _toInt(j['units'] ?? j['unitsRequired'], 1),
-        unitsAccepted: _toInt(j['unitsAccepted'], 0),
-        hospitalName: (j['hospitalName'] ?? j['hospital'] ?? '').toString(),
-        city: (j['city'] ?? j['location'] ?? '').toString(),
-        urgency: _urgency(j['urgency'] ?? j['urgencyLevel']),
-        status: _status(j['status']),
-        lat: _toDouble(j['lat'] ?? j['latitude']),
-        lng: _toDouble(j['lng'] ?? j['longitude']),
-        predictedUrgency: j['predictedUrgency']?.toString(),
-        patient: j['patient'] is Map
-            ? Map<String, dynamic>.from(j['patient'] as Map)
-            : null,
-        createdAt:
-            DateTime.tryParse((j['createdAt'] ?? '').toString())?.toLocal(),
-      );
+  factory BloodRequest.fromJson(Map<String, dynamic> raw) {
+    final j = (raw['bloodRequest'] is Map)
+        ? Map<String, dynamic>.from(raw['bloodRequest'] as Map)
+        : (raw['request'] is Map)
+            ? Map<String, dynamic>.from(raw['request'] as Map)
+            : raw;
+
+    String? reqId;
+    final r = j['requester'] ?? j['requesterId'];
+    if (r is Map) {
+      reqId = (r['_id'] ?? r['id'])?.toString();
+    } else if (r != null) {
+      reqId = r.toString();
+    }
+
+    final cityVal = (j['city'] ?? j['location'] ?? '').toString().trim();
+    final patientMap = j['patient'] is Map
+        ? Map<String, dynamic>.from(j['patient'] as Map)
+        : null;
+
+    final rawHospital = (j['hospitalName'] ??
+            j['hospital'] ??
+            j['facility'] ??
+            patientMap?['hospital'] ??
+            patientMap?['hospitalName'] ??
+            '')
+        .toString()
+        .trim();
+    final hospitalVal = rawHospital.isNotEmpty
+        ? rawHospital
+        : (cityVal.isNotEmpty ? 'Hospital in $cityVal' : 'Medical Center');
+
+    return BloodRequest(
+      id: (j['id'] ?? j['_id'] ?? '').toString(),
+      requesterId: reqId,
+      bloodGroup: (j['bloodGroup'] ?? j['blood_group'] ?? '').toString().trim(),
+      units: _toInt(j['units'] ?? j['unitsRequired'], 1),
+      unitsAccepted: _toInt(j['unitsAccepted'], 0),
+      hospitalName: hospitalVal,
+      city: cityVal,
+      urgency: _urgency(j['urgency'] ?? j['urgencyLevel']),
+      status: _status(j['status']),
+      lat: _toDouble(j['lat'] ?? j['latitude'] ?? j['hospitalLatitude']),
+      lng: _toDouble(j['lng'] ?? j['longitude'] ?? j['hospitalLongitude']),
+      predictedUrgency: j['predictedUrgency']?.toString(),
+      patient: patientMap,
+      createdAt:
+          DateTime.tryParse((j['createdAt'] ?? '').toString())?.toLocal(),
+    );
+  }
 }
 
 int _urgency(dynamic v) {
