@@ -86,37 +86,6 @@ const validatePagination = (query) => {
 // CREATE BLOOD REQUEST
 const createBloodRequest = async (req, res) => {
   try {
-    
-      // Create notifications for admin users.
-      const adminUsers = await User.find({
-        role: "admin"
-      }).select("_id");
-
-      const isEmergency =
-        normalizedUrgency === "emergency";
-
-      if (adminUsers.length > 0) {
-        const adminNotifications = adminUsers.map((admin) => ({
-          userId: admin._id,
-          title: isEmergency
-            ? "New Emergency Blood Request"
-            : "New Blood Request Created",
-          message:
-            `${normalizedBloodGroup} blood required in ${normalizedCity}. ` +
-            `Units required: ${units}. ` +
-            `Urgency: ${normalizedUrgency || "normal"}.`,
-          type: isEmergency
-            ? "emergency"
-            : "blood_request",
-          relatedRequest: bloodRequest._id
-        }));
-
-        await Notification.insertMany(adminNotifications);
-
-        console.log(
-          `Created ${adminNotifications.length} admin notifications`
-        );
-      }
     console.log("CREATE BLOOD REQUEST API HIT");
     if (!isPlainObject(req.body)) {
       return res.status(400).json({
@@ -374,6 +343,44 @@ const createBloodRequest = async (req, res) => {
           : null,
       predictedUrgency
     });
+
+    // Create notifications for admin users.
+    try {
+      const adminUsers = await User.find({
+        role: "admin"
+      }).select("_id");
+
+      const isEmergency =
+        normalizedUrgency === "emergency";
+
+      if (adminUsers.length > 0) {
+        const adminNotifications = adminUsers.map((admin) => ({
+          userId: admin._id,
+          title: isEmergency
+            ? "New Emergency Blood Request"
+            : "New Blood Request Created",
+          message:
+            `${normalizedBloodGroup} blood required in ${normalizedCity}. ` +
+            `Units required: ${units}. ` +
+            `Urgency: ${normalizedUrgency || "normal"}.`,
+          type: isEmergency
+            ? "emergency"
+            : "blood_request",
+          relatedRequest: bloodRequest._id
+        }));
+
+        await Notification.insertMany(adminNotifications);
+
+        console.log(
+          `Created ${adminNotifications.length} admin notifications`
+        );
+      }
+    } catch (adminNotificationError) {
+      console.error(
+        "Create admin notifications error:",
+        adminNotificationError.message
+      );
+    }
 
     // Create notifications for matching donors.
     try {
