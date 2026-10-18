@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 const BloodRequest = require("../models/BloodRequest");
 const Donor = require("../models/Donor");
 const Notification = require("../models/Notification");
+const User = require("../models/User");
 
 const {
   getCompatibleBloodGroups
@@ -85,6 +86,37 @@ const validatePagination = (query) => {
 // CREATE BLOOD REQUEST
 const createBloodRequest = async (req, res) => {
   try {
+    
+      // Create notifications for admin users.
+      const adminUsers = await User.find({
+        role: "admin"
+      }).select("_id");
+
+      const isEmergency =
+        normalizedUrgency === "emergency";
+
+      if (adminUsers.length > 0) {
+        const adminNotifications = adminUsers.map((admin) => ({
+          userId: admin._id,
+          title: isEmergency
+            ? "New Emergency Blood Request"
+            : "New Blood Request Created",
+          message:
+            `${normalizedBloodGroup} blood required in ${normalizedCity}. ` +
+            `Units required: ${units}. ` +
+            `Urgency: ${normalizedUrgency || "normal"}.`,
+          type: isEmergency
+            ? "emergency"
+            : "blood_request",
+          relatedRequest: bloodRequest._id
+        }));
+
+        await Notification.insertMany(adminNotifications);
+
+        console.log(
+          `Created ${adminNotifications.length} admin notifications`
+        );
+      }
     console.log("CREATE BLOOD REQUEST API HIT");
     if (!isPlainObject(req.body)) {
       return res.status(400).json({
@@ -125,7 +157,6 @@ const createBloodRequest = async (req, res) => {
     }
 
     const normalizedBloodGroup = bloodGroup.trim().toUpperCase();
-
     const normalizedCity = city.trim();
 
     // Validate blood group.
@@ -573,9 +604,7 @@ const getPotentialDonors = async (req, res) => {
     }
 
     const { page, limit, skip } = pagination;
-
-    const bloodRequest =
-      await BloodRequest.findById(requestId);
+    const bloodRequest = await BloodRequest.findById(requestId);
 
     if (!bloodRequest) {
       return res.status(404).json({
@@ -595,8 +624,7 @@ const getPotentialDonors = async (req, res) => {
       });
     }
 
-    const compatibleGroups =
-      getCompatibleBloodGroups(bloodRequest.bloodGroup);
+    const compatibleGroups = getCompatibleBloodGroups(bloodRequest.bloodGroup);
 
     if (!Array.isArray(compatibleGroups)) {
       return res.status(500).json({
@@ -649,9 +677,7 @@ const getPotentialDonors = async (req, res) => {
       donor.hemoglobinGDl != null;
 
     const mlReady = eligibleDonors.filter(hasMlData);
-
-    const mlSkipped =
-      eligibleDonors.filter((donor) => !hasMlData(donor));
+    const mlSkipped = eligibleDonors.filter((donor) => !hasMlData(donor));
 
     let rankedList = mlReady.map((donor) => donor.toObject());
     let rankingApplied = false;
@@ -797,8 +823,7 @@ const cancelBloodRequest = async (req, res) => {
     if (!["open", "matched"].includes(bloodRequest.status)) {
       return res.status(409).json({
         success: false,
-        message:
-          `Cannot cancel a request with status: ${bloodRequest.status}`
+        message: `Cannot cancel a request with status: ${bloodRequest.status}`
       });
     }
 
@@ -844,7 +869,6 @@ const cancelBloodRequest = async (req, res) => {
     });
   }
 };
-
 
 module.exports = {
   createBloodRequest,
