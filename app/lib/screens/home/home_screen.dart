@@ -30,7 +30,14 @@ class _HomeScreenState extends State<HomeScreen> {
     if (user.isDonor) {
       final alerts = context.read<AlertProvider>();
       final donor = context.read<DonorProvider>();
-      await Future.wait([alerts.load(silent: true), donor.load()]);
+      await Future.wait([
+        alerts.load(
+          silent: true,
+          city: user.city,
+          bloodGroup: user.bloodGroup,
+        ),
+        donor.load(),
+      ]);
     } else {
       final reqs = context.read<RequestProvider>();
       await Future.wait([
@@ -127,9 +134,33 @@ class _HomeScreenState extends State<HomeScreen> {
       if (alerts.error != null && alerts.alerts.isEmpty)
         Text(alerts.error!, style: const TextStyle(color: Colors.red))
       else if (top.isEmpty)
-        Text('No urgent requests in ${user.city} right now.', style: const TextStyle(color: kMuted))
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFEDE7EA)),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.check_circle_outline,
+                  color: Color(0xFF10B981), size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'No urgent blood requests in ${user.city} right now.',
+                  style: const TextStyle(
+                      fontSize: 13,
+                      color: kMuted,
+                      fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
+        )
       else
-        for (final a in top) ...[ _DispatchCard(a),  const SizedBox(height: 12) ],
+        for (final a in top) ...[_DispatchCard(a), const SizedBox(height: 12)],
     ];
   }
 }

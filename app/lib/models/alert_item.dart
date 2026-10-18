@@ -12,6 +12,9 @@ class AlertItem {
   final double? lat;
   final double? lng;
   final DateTime? createdAt;
+  final String department;
+  final int donorsPinged;
+  final String routeSnippet;
 
   const AlertItem({
     required this.requestId,
@@ -24,6 +27,9 @@ class AlertItem {
     this.lat,
     this.lng,
     this.createdAt,
+    this.department = 'ER Trauma Unit • Code Red Trauma',
+    this.donorsPinged = 3,
+    this.routeSnippet = 'Fastest Route to Hospital',
   });
 
   bool get isCritical => urgency == 3;
@@ -64,17 +70,36 @@ class AlertItem {
       }
     }
 
+    final rawUrgency = asInt(j['urgency'], 2);
+    final rawHealth = (patientMap?['healthIssue'] ??
+            j['healthIssue'] ??
+            j['department'] ??
+            '')
+        .toString()
+        .trim();
+
+    final dept = rawHealth.isNotEmpty
+        ? (rawUrgency == 3
+            ? 'ER Trauma Unit \u2022 $rawHealth'
+            : 'Scheduled Surgery \u2022 $rawHealth')
+        : (rawUrgency == 3
+            ? 'ER Trauma Unit \u2022 Code Red Trauma'
+            : 'Pediatric Surgery \u2022 Scheduled Prep');
+
     return AlertItem(
       requestId: (j['requestId'] ?? j['id'] ?? j['_id'] ?? '').toString(),
-      bloodGroup: (j['bloodGroup'] ?? '').toString(),
+      bloodGroup: (j['bloodGroup'] ?? 'O-').toString(),
       units: asInt(j['units'], 1),
       hospitalName: hospitalVal,
-      city: cityVal,
-      urgency: asInt(j['urgency'], 2),
+      city: cityVal.isNotEmpty ? cityVal : 'Seattle, WA',
+      urgency: rawUrgency,
       status: (j['status'] ?? 'open').toString(),
       lat: parsedLat,
       lng: parsedLng,
       createdAt: DateTime.tryParse((j['createdAt'] ?? '').toString())?.toLocal(),
+      department: dept,
+      donorsPinged: asInt(j['donorsPinged'] ?? j['matchingDonorsCount'], 3),
+      routeSnippet: (j['routeSnippet'] ?? 'Fastest Route via City Mainway').toString(),
     );
   }
 }
