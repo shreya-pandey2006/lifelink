@@ -107,7 +107,13 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
   void initState() {
     super.initState();
     final userCity = context.read<AuthProvider>().user?.city;
-    if (userCity != null && userCity.trim().isNotEmpty) _city = userCity.trim();
+    if (userCity != null && userCity.trim().isNotEmpty) {
+      _city = userCity.trim();
+      final coords = getCoordinatesForCity(_city);
+      if (coords != null) {
+        _pin = LatLng(coords.$1, coords.$2);
+      }
+    }
   }
 
   @override
@@ -180,8 +186,8 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
         'healthIssue': _patientHealthIssue,
         'hemoglobinGDl': hbVal ?? 12.0,
         'requiredWithinHours': hrsVal ?? 24,
-        'activeBleeding': _patientBleeding ? 1 : 0,
-        'previousTransfusions': _patientTransfusions ? 1 : 0,
+        'activeBleeding': _patientBleeding,
+        'previousTransfusions': _patientTransfusions,
         'plateletCount': 250000,
         'systolicBp': 120,
         'heartRate': 80,
@@ -189,6 +195,14 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
         'bloodComponentNeeded': 'Whole Blood',
       };
     }
+
+    final pinToUse = _pin ??
+        (_city != null && _city!.trim().isNotEmpty
+            ? (() {
+                final coords = getCoordinatesForCity(_city!.trim());
+                return coords != null ? LatLng(coords.$1, coords.$2) : null;
+              })()
+            : null);
 
     try {
       final req = await context.read<RequestProvider>().create(
@@ -198,8 +212,8 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
             city: _city!,
             urgency: _urgency,
             patient: patientData,
-            lat: _pin?.latitude,
-            lng: _pin?.longitude,
+            lat: pinToUse?.latitude,
+            lng: pinToUse?.longitude,
           );
       if (!mounted) return;
       final msg = req.predictedUrgency != null
@@ -389,7 +403,15 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
           CitySearchField(
             initialValue: _city,
             hintText: 'Search or enter city (e.g. Delhi, Pune, Kolkata)',
-            onChanged: (v) => setState(() => _city = v),
+            onChanged: (v) => setState(() {
+              _city = v;
+              if (v.trim().isNotEmpty) {
+                final coords = getCoordinatesForCity(v.trim());
+                if (coords != null) {
+                  _pin = LatLng(coords.$1, coords.$2);
+                }
+              }
+            }),
             validator: (v) =>
                 (v == null || v.trim().isEmpty) ? 'Please enter a city' : null,
           ),

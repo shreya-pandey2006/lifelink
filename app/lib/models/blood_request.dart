@@ -1,3 +1,5 @@
+import '../core/constants.dart';
+
 class BloodRequest {
   final String id;
   final String? requesterId;
@@ -58,12 +60,38 @@ class BloodRequest {
             j['facility'] ??
             patientMap?['hospital'] ??
             patientMap?['hospitalName'] ??
+            patientMap?['facility'] ??
             '')
         .toString()
         .trim();
     final hospitalVal = rawHospital.isNotEmpty
         ? rawHospital
         : (cityVal.isNotEmpty ? 'Hospital in $cityVal' : 'Medical Center');
+
+    double? parsedLat = _toDouble(
+      j['lat'] ??
+          j['latitude'] ??
+          j['hospitalLatitude'] ??
+          patientMap?['lat'] ??
+          patientMap?['latitude'] ??
+          patientMap?['hospitalLatitude'],
+    );
+    double? parsedLng = _toDouble(
+      j['lng'] ??
+          j['longitude'] ??
+          j['hospitalLongitude'] ??
+          patientMap?['lng'] ??
+          patientMap?['longitude'] ??
+          patientMap?['hospitalLongitude'],
+    );
+
+    if ((parsedLat == null || parsedLng == null) && cityVal.isNotEmpty) {
+      final cityCoords = getCoordinatesForCity(cityVal);
+      if (cityCoords != null) {
+        parsedLat ??= cityCoords.$1;
+        parsedLng ??= cityCoords.$2;
+      }
+    }
 
     return BloodRequest(
       id: (j['id'] ?? j['_id'] ?? '').toString(),
@@ -75,8 +103,8 @@ class BloodRequest {
       city: cityVal,
       urgency: _urgency(j['urgency'] ?? j['urgencyLevel']),
       status: _status(j['status']),
-      lat: _toDouble(j['lat'] ?? j['latitude'] ?? j['hospitalLatitude']),
-      lng: _toDouble(j['lng'] ?? j['longitude'] ?? j['hospitalLongitude']),
+      lat: parsedLat,
+      lng: parsedLng,
       predictedUrgency: j['predictedUrgency']?.toString(),
       patient: patientMap,
       createdAt:

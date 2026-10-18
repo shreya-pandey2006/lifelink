@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/constants.dart';
 import '../models/blood_request.dart';
 import '../models/potential_donor.dart';
 import '../services/api_client.dart';
@@ -53,19 +54,63 @@ class RequestProvider extends ChangeNotifier {
     double? lat,
     double? lng,
   }) async {
+    double? effectiveLat = lat;
+    double? effectiveLng = lng;
+    if ((effectiveLat == null || effectiveLng == null) && city.trim().isNotEmpty) {
+      final coords = getCoordinatesForCity(city.trim());
+      if (coords != null) {
+        effectiveLat ??= coords.$1;
+        effectiveLng ??= coords.$2;
+      }
+    }
+
+    final Map<String, dynamic> patientPayload = patient != null
+        ? Map<String, dynamic>.from(patient)
+        : <String, dynamic>{
+            'age': 30,
+            'gender': 'Other',
+            'weightKg': 60.0,
+            'healthIssue': 'General Surgery',
+            'hemoglobinGDl': 12.0,
+            'requiredWithinHours': 24,
+            'activeBleeding': false,
+            'previousTransfusions': false,
+            'plateletCount': 250000,
+            'systolicBp': 120,
+            'heartRate': 80,
+            'spo2Percent': 98,
+            'bloodComponentNeeded': 'Whole Blood',
+          };
+
+    if (effectiveLat != null) {
+      patientPayload['lat'] = effectiveLat;
+      patientPayload['latitude'] = effectiveLat;
+      patientPayload['hospitalLatitude'] = effectiveLat;
+    }
+    if (effectiveLng != null) {
+      patientPayload['lng'] = effectiveLng;
+      patientPayload['longitude'] = effectiveLng;
+      patientPayload['hospitalLongitude'] = effectiveLng;
+    }
+    if (hospitalName.trim().isNotEmpty) {
+      patientPayload['hospital'] = hospitalName.trim();
+      patientPayload['hospitalName'] = hospitalName.trim();
+    }
+
     final body = <String, dynamic>{
       'bloodGroup': bloodGroup,
       'city': city.trim(),
       'units': units,
       'urgency': mapUrgency(urgency),
       if (hospitalName.trim().isNotEmpty) 'hospital': hospitalName.trim(),
-      if (patient != null && patient.isNotEmpty) 'patient': patient,
-      'lat': ?lat,
-      'lng': ?lng,
+      if (hospitalName.trim().isNotEmpty) 'hospitalName': hospitalName.trim(),
+      'patient': patientPayload,
+      'lat': ?effectiveLat,
+      'lng': ?effectiveLng,
     };
     final data = await ApiClient.instance.post('/requests', body);
     final map = extractMap(data, ['bloodRequest', 'request']);
-    final request = BloodRequest.fromJson(map);
+    final request = BloodRequest.fromJson(map.isNotEmpty ? map : asMap(data));
     requests = [request, ...requests];
     notifyListeners();
     return request;

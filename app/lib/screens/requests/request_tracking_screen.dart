@@ -61,18 +61,35 @@ class _RequestTrackingScreenState extends State<RequestTrackingScreen> {
       builder: (ctx) => AlertDialog(
         title: const Text('Cancel this request?'),
         content: const Text(
-            'Donors who accepted will be told they no longer need to come.'),
+            'Donors who were alerted will be notified that this request is no longer active.'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
               child: const Text('Keep request')),
           FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: kPrimaryDark),
               onPressed: () => Navigator.pop(ctx, true),
               child: const Text('Cancel request')),
         ],
       ),
     );
-    if (ok == true) await _changeStatus('cancelled');
+    if (ok != true) return;
+    if (!mounted) return;
+
+    final error = await context
+        .read<TrackingProvider>()
+        .cancelRequest(widget.requestId);
+    if (!mounted) return;
+    if (error == null) {
+      context.read<RequestProvider>().load(silent: true);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Blood request cancelled.'),
+      ));
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(error),
+      ));
+    }
   }
   @override
   Widget build(BuildContext context) {
@@ -103,7 +120,12 @@ class _RequestTrackingScreenState extends State<RequestTrackingScreen> {
           children: [
             _summary(r),
             const SizedBox(height: 14),
-            HospitalMap(lat: r.lat, lng: r.lng, title: r.hospitalName),
+            HospitalMap(
+              lat: r.lat,
+              lng: r.lng,
+              title: r.hospitalName,
+              city: r.city,
+            ),
             const SizedBox(height: 14),
             _progress(r),
             const SizedBox(height: 18),
@@ -337,24 +359,44 @@ class _RequestTrackingScreenState extends State<RequestTrackingScreen> {
 
   List<Widget> _actions(BloodRequest r) {
     final user = context.read<AuthProvider>().user;
-    // Status overrides via /admin/requests/:id/status are restricted to admin role
-    if (user == null || !user.isAdmin) return const [];
+    final isCancellable = r.status == 'open' || r.status == 'matched';
+    final isOwner = user != null &&
+        (r.requesterId == null ||
+            r.requesterId!.isEmpty ||
+            r.requesterId == user.id);
+    final canCancel = isCancellable && (isOwner || user?.isAdmin == true);
+    final canFulfill = user?.isAdmin == true && r.status == 'matched';
+
+    if (!canCancel && !canFulfill) return const [];
 
     return [
-      if (r.status == 'matched')
+      if (canFulfill) ...[
         PrimaryButton(
           label: 'Mark as Fulfilled',
           icon: Icons.check_circle_outline,
           onPressed: () => _changeStatus('fulfilled'),
         ),
-      if (r.status == 'open' || r.status == 'matched')
-        Center(
-          child: TextButton.icon(
-            onPressed: _confirmCancel,
-            icon: const Icon(Icons.cancel_outlined, color: kPrimaryDark),
-            label: const Text('Cancel Request',
-                style: TextStyle(
-                    color: kPrimaryDark, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 12),
+      ],
+      if (canCancel)
+        OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(
+            foregroundColor: kPrimaryDark,
+            side: const BorderSide(color: kPrimaryDark, width: 1.5),
+            minimumSize: const Size.fromHeight(48),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+          ),
+          onPressed: _confirmCancel,
+          icon: const Icon(Icons.cancel_outlined, size: 20),
+          label: const Text(
+            'Cancel Blood Request',
+            style: TextStyle(
+              color: kPrimaryDark,
+              fontWeight: FontWeight.w800,
+              fontSize: 15,
+            ),
           ),
         ),
     ];

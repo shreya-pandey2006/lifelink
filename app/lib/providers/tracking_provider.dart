@@ -88,6 +88,28 @@ class TrackingProvider extends ChangeNotifier {
     }
   }
 
+  Future<String?> cancelRequest(String id) async {
+    try {
+      await ApiClient.instance.patch('/requests/$id/cancel');
+      await load(id, silent: true);
+      return null;
+    } on ApiException catch (e) {
+      // Try admin status route fallback if admin
+      try {
+        await ApiClient.instance
+            .patch('/admin/requests/$id/status', {'status': 'cancelled'});
+        await load(id, silent: true);
+        return null;
+      } on ApiException {
+        return e.message;
+      } catch (_) {
+        return e.message;
+      }
+    } catch (_) {
+      return 'Something went wrong. Please try again.';
+    }
+  }
+
   Future<String?> setStatus(String id, String status) async {
     try {
       await ApiClient.instance
