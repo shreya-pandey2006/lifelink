@@ -1,4 +1,3 @@
-
 const User = require("../models/User");
 const bcrypt = require("bcrypt");
 const Donor = require("../models/Donor");
@@ -13,23 +12,79 @@ exports.register = async (req, res) => {
                 message: "Please fill all required fields"
             });
         }
+        
+        if (typeof name !== "string" || name.trim().length < 2 || name.trim().length > 100) {
+            return res.status(400).json({
+                success: false,
+                message: "Name must be between 2 and 100 characters"
+            });
+        }
 
-        if (password.length < 6) {
+        if (typeof city !== "string" || city.trim().length < 1 || city.trim().length > 100) {
+            return res.status(400).json({
+                success: false,
+                message: "City must be between 1 and 100 characters"
+            });
+        }
+        
+        if (
+            phone !== undefined &&
+            phone !== null &&
+            phone !== "" &&
+            (typeof phone !== "string" ||
+                !/^\+?[0-9]{10,15}$/.test(phone.trim()))
+        ) {
+           return res.status(400).json({
+                success: false,
+                message: "Please enter a valid phone number (10–15 digits)"
+            });
+        }
+        
+        if (typeof email !== "string") {
+            return res.status(400).json({
+                success: false,
+                message: "Please enter a valid email address"
+            });
+        }
+        const normalizedEmail = email.trim().toLowerCase();
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+        if (!emailRegex.test(normalizedEmail)) {
+            return res.status(400).json({
+                success: false,
+                message: "Please enter a valid email address"
+            });
+        }
+
+        if (typeof password !== "string" || password.length < 6) {
             return res.status(400).json({
                 success: false,
                 message: "Password must be at least 6 characters"
             });
         }
 
-        if (!["requester", "donor", "admin"].includes(role)) {
+        if (!["requester", "donor"].includes(role)) {
+            return res.status(400).json({
+               success: false,
+               message: "Invalid user role"
+            });
+        }
+
+        const allowedBloodGroups = [
+            "A+", "A-", "B+", "B-",
+            "AB+", "AB-", "O+", "O-"
+        ];   
+
+        if ( role === "donor" && !allowedBloodGroups.includes(req.body.bloodGroup)
+        ) {
             return res.status(400).json({
                 success: false,
-                message: "Invalid user role"
+                message: "A valid blood group is required for donors"
             });
         }
 
         const existingUser = await User.findOne({
-            email: email.toLowerCase().trim()
+            email: normalizedEmail
         });
 
         if (existingUser) {
@@ -42,33 +97,27 @@ exports.register = async (req, res) => {
         const passwordHash = await bcrypt.hash(password, 10);
 
         const user = await User.create({
-            name,
-            email: email.toLowerCase().trim(),
-            passwordHash,
-            role,
-            phone,
-            city
-        });
+        name: name.trim(),
+        email: normalizedEmail,
+        passwordHash,
+        role,
+        phone: phone ? phone.trim() : phone,
+        city: city.trim()
+    });
+
+    try {
         if (role === "donor") {
             await Donor.create({
-            user: user._id,
-            bloodGroup: req.body.bloodGroup,
-            city
-          });
-        }  
-
-        
-       const allowedBloodGroups = [
-            "A+", "A-", "B+", "B-",
-            "AB+", "AB-", "O+", "O-"];
-
-        if (role === "donor" && !allowedBloodGroups.includes(req.body.bloodGroup)
-        ) {
-         return res.status(400).json({
-            success: false,
-            message: "A valid blood group is required for donors"
-          });
-         }
+                user: user._id,
+                bloodGroup: req.body.bloodGroup,
+                city: city.trim()
+            });
+        }
+    } catch (error) {
+    // Roll back the user if donor profile creation fails.
+        await User.findByIdAndDelete(user._id);
+        throw error;
+    }
 
         res.status(201).json({
             success: true,
@@ -83,7 +132,6 @@ exports.register = async (req, res) => {
         });
     } catch (error) {
         console.error("Registration error:", error.message);
-
         res.status(500).json({
             success: false,
             message: "Registration failed"
@@ -91,22 +139,26 @@ exports.register = async (req, res) => {
     }
 };
 
-
 const jwt = require("jsonwebtoken");
 
 exports.login = async (req, res) => {
     try {
         const { email, password } = req.body;
 
-        if (!email || !password) {
-            return res.status(400).json({
-                success: false,
-                message: "Email and password are required"
-            });
-        }
-
+       if (
+        typeof email !== "string" ||
+        !email.trim() ||
+        typeof password !== "string" ||
+        !password
+    ) {
+        return res.status(400).json({
+            success: false,
+            message: "Email and password are required"
+        });
+    }
+        const normalizedEmail = email.trim().toLowerCase();
         const user = await User.findOne({
-            email: email.toLowerCase().trim()
+            email: normalizedEmail
         });
 
         if (!user) {

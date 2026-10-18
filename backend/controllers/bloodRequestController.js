@@ -1,63 +1,421 @@
+const mongoose = require("mongoose");
 const BloodRequest = require("../models/BloodRequest");
 const Donor = require("../models/Donor");
+const Notification = require("../models/Notification");
 
 const {
   getCompatibleBloodGroups
 } = require("../services/donorMatchingService");
 
-// Create a blood request
+const {
+  predictUrgency,
+  rankDonors
+} = require("../services/mlService");
+
+const VALID_BLOOD_GROUPS = [
+  "A+", "A-", "B+", "B-",
+  "AB+", "AB-", "O+", "O-"
+];
+
+const VALID_URGENCY_LEVELS = [
+  "normal",
+  "urgent",
+  "emergency"
+];
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// Escape special characters before using a city name in a regex.
+const escapeRegex = (value) =>
+  value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); 
+
+// Calculate days since the last donation.
+const daysSince = (date) => {
+  if (!date) return 365;
+
+  const time = new Date(date).getTime();
+
+  if (Number.isNaN(time)) return 365;
+
+  return Math.max(
+    0,
+    Math.floor((Date.now() - time) / DAY_MS)
+  );
+};
+
+// Check whether a value is a plain object.
+const isPlainObject = (value) =>
+  value !== null &&
+  typeof value === "object" &&
+  !Array.isArray(value) &&
+  (
+    Object.getPrototypeOf(value) === Object.prototype ||
+    Object.getPrototypeOf(value) === null
+  );
+
+// Validate pagination.
+const validatePagination = (query) => {
+  const page = Number(query.page ?? 1);
+  const limit = Number(query.limit ?? 10);
+
+  if (
+    !Number.isSafeInteger(page) ||
+    page < 1 ||
+    !Number.isSafeInteger(limit) ||
+    limit < 1 ||
+    limit > 100
+  ) {
+    return {
+      error:
+        "Page must be a positive integer and limit must be between 1 and 100"
+    };
+  }
+
+  const skip = (page - 1) * limit;
+
+  if (!Number.isSafeInteger(skip)) {
+    return {
+      error: "Page is too large"
+    };
+  }
+
+  return { page, limit, skip };
+};
+
+// CREATE BLOOD REQUEST
 const createBloodRequest = async (req, res) => {
   try {
-    const { bloodGroup, city, units, urgency } = req.body;
+    console.log("CREATE BLOOD REQUEST API HIT");
+    if (!isPlainObject(req.body)) {
+      return res.status(400).json({
+        success: false,
+        message: "Request body must be a valid JSON object"
+      });
+    }
 
-    if (!bloodGroup || !city || units === undefined) {
+    const {
+      bloodGroup,
+      city,
+      units,
+      urgency,
+      patient
+    } = req.body;
+
+    // Required fields.
+    if (
+      bloodGroup === undefined ||
+      city === undefined ||
+      units === undefined
+    ) {
       return res.status(400).json({
         success: false,
         message: "Blood group, city and units are required"
       });
     }
 
-    const validBloodGroups = [
-      "A+", "A-", "B+", "B-",
-      "AB+", "AB-", "O+", "O-"
-    ];
+    // Validate field types.
+    if (
+      typeof bloodGroup !== "string" ||
+      typeof city !== "string"
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Blood group and city must be strings"
+      });
+    }
 
-    if (!validBloodGroups.includes(bloodGroup)) {
+    const normalizedBloodGroup = bloodGroup.trim().toUpperCase();
+
+    const normalizedCity = city.trim();
+
+    // Validate blood group.
+    if (!VALID_BLOOD_GROUPS.includes(normalizedBloodGroup)) {
       return res.status(400).json({
         success: false,
         message: "Invalid blood group"
       });
     }
 
+    // Validate city.
     if (
-      typeof city !== "string" ||
-      !city.trim() ||
-      !Number.isInteger(units) ||
-      units < 1
+      !normalizedCity ||
+      normalizedCity.length > 100
     ) {
       return res.status(400).json({
         success: false,
-        message: "Enter a valid city and units (minimum 1)"
+        message: "City must contain 1 to 100 characters"
       });
     }
 
+    // Units must be a positive integer.
+    if (!Number.isSafeInteger(units) || units < 1) {
+      return res.status(400).json({
+        success: false,
+        message: "Units must be a positive integer"
+      });
+    }
+
+    // Normalize and validate urgency.
+    const normalizedUrgency =
+      typeof urgency === "string"
+        ? urgency.trim().toLowerCase()
+        : urgency;
+
     if (
-      urgency !== undefined &&
-      !["normal", "urgent", "emergency"].includes(urgency)
+      normalizedUrgency !== undefined &&
+      !VALID_URGENCY_LEVELS.includes(normalizedUrgency)
     ) {
       return res.status(400).json({
         success: false,
-        message: "Invalid urgency"
+        message: "Urgency must be normal, urgent or emergency"
       });
     }
 
+    // Patient must be an object when provided.
+    if (
+      patient !== undefined &&
+      patient !== null &&
+      !isPlainObject(patient)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Patient must be an object"
+      });
+    }
+
+    // Validate patient details.
+    if (patient && Object.keys(patient).length > 0) {
+      if (
+        patient.age !== undefined &&
+        (
+          typeof patient.age !== "number" ||
+          !Number.isFinite(patient.age) ||
+          patient.age < 0 ||
+          patient.age > 120
+        )
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: "Patient age must be between 0 and 120"
+        });
+      }
+
+      if ( patient.weightKg !== undefined &&
+        (
+          typeof patient.weightKg !== "number" ||
+          !Number.isFinite(patient.weightKg) ||
+          patient.weightKg <= 0
+        )
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: "Patient weight must be a positive number"
+        });
+      }
+
+      if (
+        patient.gender !== undefined &&
+        (
+          typeof patient.gender !== "string" ||
+          !patient.gender.trim()
+        )
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: "Patient gender must be a non-empty string"
+        });
+      }
+
+      // Validate numeric patient measurements.
+      const patientNumberRanges = {
+        hemoglobinGDl: [0, 30],
+        plateletCount: [0, 2000000],
+        systolicBp: [0, 400],
+        heartRate: [0, 350],
+        spo2Percent: [0, 100],
+        requiredWithinHours: [0, 8760]
+      };
+
+      for (
+        const [field, [min, max]]
+        of Object.entries(patientNumberRanges)
+      ) {
+        if (
+          patient[field] !== undefined &&
+          (
+            typeof patient[field] !== "number" ||
+            !Number.isFinite(patient[field]) ||
+            patient[field] < min ||
+            patient[field] > max
+          )
+        ) {
+          return res.status(400).json({
+            success: false,
+            message:
+              `Patient ${field} must be between ${min} and ${max}`
+          });
+        }
+      }
+
+      // Validate boolean patient fields.
+      for (const field of [
+        "activeBleeding",
+        "previousTransfusions"
+      ]) {
+        if (
+          patient[field] !== undefined &&
+          typeof patient[field] !== "boolean"
+        ) {
+          return res.status(400).json({
+            success: false,
+            message: `Patient ${field} must be true or false`
+          });
+        }
+      }
+
+      // Validate string patient fields.
+      for (const field of [
+        "healthIssue",
+        "bloodComponentNeeded"
+      ]) {
+        if (
+          patient[field] !== undefined &&
+          typeof patient[field] !== "string"
+        ) {
+          return res.status(400).json({
+            success: false,
+            message: `Patient ${field} must be a string`
+          });
+        }
+      }
+    }
+
+    let predictedUrgency = null;
+
+    // Predict urgency only when patient data is supplied.
+    if (patient && Object.keys(patient).length > 0) {
+      try {
+        const mlResult = await predictUrgency({
+          age: patient.age,
+          gender: patient.gender,
+          weight_kg: patient.weightKg,
+          blood_group: normalizedBloodGroup,
+          city: normalizedCity,
+          health_issue: patient.healthIssue,
+          hemoglobin_g_dl: patient.hemoglobinGDl,
+          platelet_count: patient.plateletCount,
+          systolic_bp: patient.systolicBp,
+          heart_rate: patient.heartRate,
+          spo2_percent: patient.spo2Percent,
+          active_bleeding: patient.activeBleeding,
+          previous_transfusions: patient.previousTransfusions,
+          blood_component_needed: patient.bloodComponentNeeded,
+          units_required: units,
+          required_within_hours: patient.requiredWithinHours
+        });
+
+        if (
+          mlResult?.status === "success" &&
+          typeof mlResult.predicted_urgency_level === "string"
+        ) {
+          predictedUrgency =
+            mlResult.predicted_urgency_level;
+        }
+      } catch (mlError) {
+        // Request creation continues if ML is unavailable.
+        console.error(
+          "Urgency ML error:",
+          mlError.message
+        );
+      }
+    }
+
+    // Create the blood request.
     const bloodRequest = await BloodRequest.create({
       requester: req.user.id,
-      bloodGroup,
-      city: city.trim(),
+      bloodGroup: normalizedBloodGroup,
+      city: normalizedCity,
       units,
-      urgency: urgency || "normal"
+      urgency: normalizedUrgency || "normal",
+      patient:
+        patient && Object.keys(patient).length > 0
+          ? patient
+          : null,
+      predictedUrgency
     });
+
+    // Create notifications for matching donors.
+    try {
+      const compatibleGroups =
+        getCompatibleBloodGroups(normalizedBloodGroup);
+
+      const safeCityRegex = new RegExp(
+        `^${escapeRegex(normalizedCity)}$`,
+        "i"
+      );
+
+      const matchingDonors = await Donor.find({
+        bloodGroup: { $in: compatibleGroups },
+        city: { $regex: safeCityRegex },
+        available: true,
+        user: { $ne: req.user.id }
+      }).select("_id user lastDonationDate totalDonations");
+
+      // Exclude donors who donated within the previous 90 days.
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - 90);
+
+      const eligibleDonors = matchingDonors.filter((donor) => {
+        const totalDonations = donor.totalDonations ?? 0;
+
+        if (totalDonations === 0) {
+          return !donor.lastDonationDate;
+        }
+
+        if (!donor.lastDonationDate) {
+          return false;
+        }
+
+        const lastDonation = new Date(donor.lastDonationDate);
+
+        return (
+          !Number.isNaN(lastDonation.getTime()) &&
+          lastDonation <= cutoffDate
+        );
+      });
+
+      const notificationDocuments = eligibleDonors
+        .filter((donor) => donor.user)
+        .map((donor) => ({
+          userId: donor.user,
+          title:
+            (normalizedUrgency || "normal") === "emergency"
+              ? "Emergency Blood Request"
+              : "New Blood Request",
+          message:
+            `${normalizedBloodGroup} blood required in ${normalizedCity}. ` +
+            `Units required: ${units}. ` +
+            `Urgency: ${normalizedUrgency || "normal"}.`,
+          type:
+            (normalizedUrgency || "normal") === "emergency"
+              ? "emergency"
+              : "blood_request",
+          relatedRequest: bloodRequest._id
+        }));
+
+      if (notificationDocuments.length > 0) {
+        await Notification.insertMany(notificationDocuments);
+      }
+
+      console.log(
+        `Created ${notificationDocuments.length} donor notifications`
+      );
+    } catch (notificationError) {
+      console.error(
+        "Create donor notifications error:",
+        notificationError.message
+      );
+    }
 
     return res.status(201).json({
       success: true,
@@ -65,7 +423,20 @@ const createBloodRequest = async (req, res) => {
       bloodRequest
     });
   } catch (error) {
-    console.error("Create blood request error:", error.message);
+    console.error(
+      "Create blood request error:",
+      error.message
+    );
+
+    if (
+      error.name === "ValidationError" ||
+      error.name === "CastError"
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid blood request data"
+      });
+    }
 
     return res.status(500).json({
       success: false,
@@ -74,27 +445,54 @@ const createBloodRequest = async (req, res) => {
   }
 };
 
-// Get blood requests
+// GET BLOOD REQUESTS WITH PAGINATION
 const getBloodRequests = async (req, res) => {
   try {
-    let requests;
+    const pagination = validatePagination(req.query);
 
-    if (req.user.role === "admin") {
-      requests = await BloodRequest.find()
-        .sort({ createdAt: -1 });
-    } else {
-      requests = await BloodRequest.find({
-        requester: req.user.id
-      }).sort({ createdAt: -1 });
+    if (pagination.error) {
+      return res.status(400).json({
+        success: false,
+        message: pagination.error
+      });
     }
+
+    const { page, limit, skip } = pagination;
+
+    // Admins can see all requests; other users see their own.
+    const filter =
+      req.user.role === "admin"
+        ? {}
+        : { requester: req.user.id };
+
+    const [requests, totalRequests] = await Promise.all([
+      BloodRequest.find(filter)
+        .sort({ createdAt: -1, _id: -1 })
+        .skip(skip)
+        .limit(limit),
+
+      BloodRequest.countDocuments(filter)
+    ]);
+
+    const totalPages = Math.ceil(totalRequests / limit);
 
     return res.status(200).json({
       success: true,
-      totalRequests: requests.length,
-      bloodRequests: requests
+      totalRequests,
+      bloodRequests: requests,
+      pagination: {
+        currentPage: page,
+        limit,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1
+      }
     });
   } catch (error) {
-    console.error("Get blood requests error:", error.message);
+    console.error(
+      "Get blood requests error:",
+      error.message
+    );
 
     return res.status(500).json({
       success: false,
@@ -103,18 +501,20 @@ const getBloodRequests = async (req, res) => {
   }
 };
 
-// Find potential donors for a blood request
-const getPotentialDonors = async (req, res) => {
+/* GET A SINGLE BLOOD REQUEST BY ID */
+const getBloodRequestById = async (req, res) => {
   try {
     const { requestId } = req.params;
 
-    if (!requestId.match(/^[0-9a-fA-F]{24}$/)) {
+    // Validate MongoDB ObjectId
+    if (!mongoose.isValidObjectId(requestId)) {
       return res.status(400).json({
         success: false,
         message: "Invalid blood request ID"
       });
     }
 
+    // Find the blood request
     const bloodRequest = await BloodRequest.findById(requestId);
 
     if (!bloodRequest) {
@@ -124,7 +524,67 @@ const getPotentialDonors = async (req, res) => {
       });
     }
 
-    // Requesters can view matches only for their own requests.
+    // Requesters can access only their own requests.
+    // Admins can access all requests.
+    if (
+      req.user.role !== "admin" &&
+      bloodRequest.requester.toString() !== req.user.id
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "You do not have permission to access this blood request"
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      bloodRequest
+    });
+  } catch (error) {
+    console.error("Get blood request by ID error:", error.message);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch blood request"
+    });
+  }
+};
+
+// FIND POTENTIAL DONORS WITH PAGINATION
+const getPotentialDonors = async (req, res) => {
+  try {
+    const { requestId } = req.params;
+
+    // Validate MongoDB ObjectId.
+    if (!mongoose.isValidObjectId(requestId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid blood request ID"
+      });
+    }
+
+    const pagination = validatePagination(req.query);
+
+    if (pagination.error) {
+      return res.status(400).json({
+        success: false,
+        message: pagination.error
+      });
+    }
+
+    const { page, limit, skip } = pagination;
+
+    const bloodRequest =
+      await BloodRequest.findById(requestId);
+
+    if (!bloodRequest) {
+      return res.status(404).json({
+        success: false,
+        message: "Blood request not found"
+      });
+    }
+
+    // Requesters can only view donors for their own requests.
     if (
       req.user.role !== "admin" &&
       bloodRequest.requester.toString() !== req.user.id
@@ -135,9 +595,8 @@ const getPotentialDonors = async (req, res) => {
       });
     }
 
-    const compatibleGroups = getCompatibleBloodGroups(
-      bloodRequest.bloodGroup
-    );
+    const compatibleGroups =
+      getCompatibleBloodGroups(bloodRequest.bloodGroup);
 
     if (!Array.isArray(compatibleGroups)) {
       return res.status(500).json({
@@ -146,15 +605,14 @@ const getPotentialDonors = async (req, res) => {
       });
     }
 
+    const safeCityRegex = new RegExp(
+      `^${escapeRegex(bloodRequest.city.trim())}$`,
+      "i"
+    );
+
     const donors = await Donor.find({
       bloodGroup: { $in: compatibleGroups },
-      city: {
-        $regex: `^${bloodRequest.city.replace(
-          /[.*+?^${}()|[\]\\]/g,
-          "\\$&"
-        )}$`,
-        $options: "i"
-      },
+      city: { $regex: safeCityRegex },
       available: true
     }).select(
       "_id user bloodGroup city available lastDonationDate age weightKg hemoglobinGDl totalDonations"
@@ -164,22 +622,136 @@ const getPotentialDonors = async (req, res) => {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - 90);
 
-    const eligibleDonors = donors.filter(donor => {
-      if (!donor.lastDonationDate) {
-        return true;
+    const eligibleDonors = donors.filter((donor) => {
+      const totalDonations = donor.totalDonations ?? 0;
+
+      if (totalDonations === 0) {
+        return !donor.lastDonationDate;
       }
 
-      return new Date(donor.lastDonationDate) <= cutoffDate;
+      if (!donor.lastDonationDate) {
+        return false;
+      }
+
+      const lastDonation =
+        new Date(donor.lastDonationDate);
+
+      if (Number.isNaN(lastDonation.getTime())) {
+        return false;
+      }
+
+      return lastDonation <= cutoffDate;
     });
+
+    const hasMlData = (donor) =>
+      donor.age != null &&
+      donor.weightKg != null &&
+      donor.hemoglobinGDl != null;
+
+    const mlReady = eligibleDonors.filter(hasMlData);
+
+    const mlSkipped =
+      eligibleDonors.filter((donor) => !hasMlData(donor));
+
+    let rankedList = mlReady.map((donor) => donor.toObject());
+    let rankingApplied = false;
+
+    if (mlReady.length > 0) {
+      try {
+        const result = await rankDonors(
+          mlReady.map((donor) => ({
+            donorId: donor._id.toString(),
+            age: donor.age,
+            weight_kg: donor.weightKg,
+            hemoglobin_g_dL: donor.hemoglobinGDl,
+            total_donations: donor.totalDonations ?? 0,
+            days_since_last_donation:
+              daysSince(donor.lastDonationDate)
+          }))
+        );
+
+        // Validate the ranking service response.
+        if (
+          !Array.isArray(result) ||
+          result.some(
+            (item) =>
+              !item ||
+              typeof item.donor_id !== "string" ||
+              typeof item.response_probability !== "number" ||
+              !Number.isFinite(item.response_probability) ||
+              item.response_probability < 0 ||
+              item.response_probability > 1
+          )
+        ) {
+          throw new Error(
+            "ML ranking service returned invalid data"
+          );
+        }
+
+        const scoreMap = new Map(
+          result.map((item) => [
+            item.donor_id,
+            item.response_probability
+          ])
+        );
+
+        rankedList = mlReady
+          .map((donor) => ({
+            ...donor.toObject(),
+            responseProbability:
+              scoreMap.get(donor._id.toString()) ?? null
+          }))
+          .sort(
+            (a, b) =>
+              (b.responseProbability ?? -1) -
+              (a.responseProbability ?? -1)
+          );
+
+        rankingApplied = true;
+      } catch (mlError) {
+        // Fall back to the original donor list if ML fails.
+        console.error(
+          "Rank donors ML error:",
+          mlError.message
+        );
+      }
+    }
+
+    // Donors without ML data remain at the end.
+    const potentialDonors = [
+      ...rankedList,
+      ...mlSkipped.map((donor) => donor.toObject())
+    ];
+
+    // Paginate after ranking.
+    const totalPotentialDonors = potentialDonors.length;
+
+    const totalPages =
+      Math.ceil(totalPotentialDonors / limit);
+
+    const paginatedDonors =
+      potentialDonors.slice(skip, skip + limit);
 
     return res.status(200).json({
       success: true,
       requestId: bloodRequest._id,
-      totalPotentialDonors: eligibleDonors.length,
-      potentialDonors: eligibleDonors
+      predictedUrgency: bloodRequest.predictedUrgency,
+      rankingApplied,
+      totalPotentialDonors,
+      potentialDonors: paginatedDonors,
+      pagination: {
+        currentPage: page,
+        limit,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1
+      }
     });
   } catch (error) {
-    console.error("Find potential donors error:", error.message);
+    console.error(
+      "Find potential donors error:",
+      error.message
+    );
 
     return res.status(500).json({
       success: false,
@@ -188,8 +760,96 @@ const getPotentialDonors = async (req, res) => {
   }
 };
 
+// CANCEL OWN BLOOD REQUEST
+const cancelBloodRequest = async (req, res) => {
+  try {
+    const { requestId } = req.params;
+
+    // Validate MongoDB ObjectId.
+    if (!mongoose.isValidObjectId(requestId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid blood request ID"
+      });
+    }
+
+    // Find the request.
+    const bloodRequest = await BloodRequest.findById(requestId);
+
+    if (!bloodRequest) {
+      return res.status(404).json({
+        success: false,
+        message: "Blood request not found"
+      });
+    }
+
+    // Only the requester who created it can cancel it.
+    if (
+      bloodRequest.requester.toString() !== req.user.id
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "You can only cancel your own blood request"
+      });
+    }
+
+    // Only open or matched requests can be cancelled.
+    if (!["open", "matched"].includes(bloodRequest.status)) {
+      return res.status(409).json({
+        success: false,
+        message:
+          `Cannot cancel a request with status: ${bloodRequest.status}`
+      });
+    }
+
+    // Atomically update only if the status is still cancellable.
+    const cancelledRequest = await BloodRequest.findOneAndUpdate(
+      {
+        _id: requestId,
+        requester: req.user.id,
+        status: { $in: ["open", "matched"] }
+      },
+      {
+        $set: { status: "cancelled" }
+      },
+      {
+        new: true,
+        runValidators: true
+      }
+    );
+
+    // Another operation may have changed the request meanwhile.
+    if (!cancelledRequest) {
+      return res.status(409).json({
+        success: false,
+        message:
+          "Request status changed. Refresh and try again."
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Blood request cancelled successfully",
+      bloodRequest: cancelledRequest
+    });
+  } catch (error) {
+    console.error(
+      "Cancel blood request error:",
+      error.message
+    );
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to cancel blood request"
+    });
+  }
+};
+
+
 module.exports = {
   createBloodRequest,
   getBloodRequests,
-  getPotentialDonors
+  getBloodRequestById,
+  getPotentialDonors,
+  cancelBloodRequest
 };

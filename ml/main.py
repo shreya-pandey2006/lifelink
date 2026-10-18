@@ -1,72 +1,90 @@
+import joblib
+import pandas as pd
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from typing import List
-import joblib
-import numpy as np
 
-app = FastAPI(title="LifeLink ML Engine", version="1.0")
+# FastAPI app initialize karein
+app = FastAPI(
+    title="Blood Urgency Prediction API",
+    description="API to predict blood urgency level based on patient vitals and medical history.",
+    version="1.0"
+)
 
-# 1. Server start hote hi trained model load karna
+# 1. Saved Model aur Encoders load karein
 try:
-    model = joblib.load("lifelink_model.pkl")
-    print("LifeLink ML Model loaded successfully!")
+    model = joblib.load('urgency_model.pkl')
+    encoders = joblib.load('feature_encoders.pkl')
+    print("Model aur Encoders successfully load ho gaye hain!")
 except Exception as e:
-    print(f"Error loading model: {e}")
-    model = None
+    print(f"Error loading model files: {e}")
 
-# 2. Input Data Schema (Node.js backend se aane wale donors ka format)
-class Donor(BaseModel):
-    donorId: str
+# 2. Incoming Request Data ke liye Pydantic Model (Schema)
+class PatientInput(BaseModel):
     age: int
+    gender: str
     weight_kg: float
-    hemoglobin_g_dL: float
-    total_donations: int
-    days_since_last_donation: int
-
-class RankingRequest(BaseModel):
-    donors: List[Donor]
+    blood_group: str
+    city: str
+    health_issue: str
+    hemoglobin_g_dl: float
+    platelet_count: int
+    systolic_bp: int
+    heart_rate: int
+    spo2_percent: int
+    active_bleeding: int
+    previous_transfusions: int
+    blood_component_needed: str
+    units_required: int
+    required_within_hours: int
 
 @app.get("/")
 def home():
-    return {"message": "LifeLink FastAPI ML Engine is running!"}
+    return {"message": "Blood Urgency Prediction API is running live!"}
 
-# 3. Ranking Endpoint
-@app.post("/rank-donors")
-def rank_donors(payload: RankingRequest):
-    if not model:
-        raise HTTPException(status_code=500, detail="ML Model is not loaded on the server.")
-    
-    if not payload.donors:
-        return {"ranked_donors": []}
-    
-    # Extract features in the exact order model was trained on:
-    # ['Age', 'Weight_kg', 'Hemoglobin_g_dL', 'Total_Donations', 'Days_Since_Last_Donation']
-    features_list = [
-        [
-            d.age, 
-            d.weight_kg, 
-            d.hemoglobin_g_dL, 
-            d.total_donations, 
-            d.days_since_last_donation
-        ] 
-        for d in payload.donors
-    ]
-    
-    # Predict probabilities (probability of class 1 / eligibility)
-    probabilities = model.predict_proba(features_list)[:, 1]
-    
-    # Combine donors with their computed response/eligibility probability
-    ranked_donors = []
-    for i, donor in enumerate(payload.donors):
-        donor_dict = donor.dict()
-        donor_dict["response_probability"] = round(float(probabilities[i]), 4)
-        ranked_donors.append(donor_dict)
-    
-    # Sort donors by highest probability first (Best donors on top)
-    ranked_donors = sorted(ranked_donors, key=lambda x: x["response_probability"], reverse=True)
-    
-    return {
-        "status": "success",
-        "total_evaluated": len(ranked_donors),
-        "ranked_donors": ranked_donors
-    }
+@app.post("/predict")
+def predict_urgency(data: PatientInput):
+    try:
+        # Incoming text data ko LabelEncoder se safely transform karne ka function
+        def safe_transform(encoder_key, value):
+            le = encoders[encoder_key]
+            # Agar koi nayi category aa jaye jo training mein nahi thi, toh handle karne ke liye
+            if value in le.classes_:
+                return le.transform([value])[0]
+            else:
+                # Default pehla class ya 0 use kar sakte hain
+                return 0
+
+        # Input data ko DataFrame mein convert karein
+        input_df = pd.DataFrame([{
+            'age': data.age,
+            'gender': safe_transform('gender', data.gender),
+            'weight_kg': data.weight_kg,
+            'blood_group': safe_transform('blood_group', data.blood_group),
+            'city': safe_transform('city', data.city),
+            'health_issue': safe_transform('health_issue', data.health_issue),
+            'hemoglobin_g_dl': data.hemoglobin_g_dl,
+            'platelet_count': data.platelet_count,
+            'systolic_bp': data.systolic_bp,
+            'heart_rate': data.heart_rate,
+            'spo2_percent': data.spo2_percent,
+            'active_bleeding': data.active_bleeding,
+            'previous_transfusions': data.previous_transfusions,
+            'blood_component_needed': safe_transform('blood_component_needed', data.blood_component_needed),
+            'units_required': data.units_required,
+            'required_within_hours': data.required_within_hours
+        }])
+
+        # Model se prediction nikalwana (Numeric format mein aayega)
+        prediction_encoded = model.predict(input_df)[0]
+        
+        # Numeric result ko wapas original text urgency level (Low, Medium, High, Critical) mein convert karna
+        target_encoder = encoders['urgency_level']
+        urgency_result = target_encoder.inverse_transform([prediction_encoded])[0]
+
+        return {
+            "status": "success",
+            "predicted_urgency_level": urgency_result
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

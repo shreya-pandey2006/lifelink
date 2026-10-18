@@ -1,10 +1,13 @@
+
 const express = require("express");
 const router = express.Router();
 
 const {
   createBloodRequest,
   getBloodRequests,
-  getPotentialDonors
+  getPotentialDonors,
+  getBloodRequestById,
+  cancelBloodRequest
 } = require("../controllers/bloodRequestController");
 
 const { auth, requireRole } = require("../middleware/authMiddleware");
@@ -17,7 +20,7 @@ router.post(
   createBloodRequest
 );
 
-// View blood requests
+// View all blood requests
 router.get(
   "/",
   auth,
@@ -25,12 +28,28 @@ router.get(
   getBloodRequests
 );
 
-// Find eligible potential donors for a blood request
+// Get one blood request by ID
+router.get(
+  "/:requestId",
+  auth,
+  requireRole("requester", "admin"),
+  getBloodRequestById
+);
+
+// Find eligible potential donors
 router.get(
   "/:requestId/potential-donors",
   auth,
   requireRole("requester", "admin"),
   getPotentialDonors
+);
+
+// Cancel own blood request
+router.patch(
+  "/:requestId/cancel",
+  auth,
+  requireRole("requester"),
+  cancelBloodRequest
 );
 
 module.exports = router;
