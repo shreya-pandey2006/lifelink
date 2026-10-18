@@ -67,8 +67,21 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
         ),
-        CircleAvatar( radius: 22, backgroundColor: kPrimarySoft,
-          child: Text( user.name.isEmpty ? '?' : user.name[0].toUpperCase(), style: const TextStyle( fontWeight: FontWeight.w800, color: kPrimaryDark) ),
+        Tooltip(
+          message: 'View Profile',
+          child: InkWell(
+            onTap: () => context.go('/profile'),
+            borderRadius: BorderRadius.circular(24),
+            child: CircleAvatar(
+              radius: 22,
+              backgroundColor: kPrimarySoft,
+              child: Text(
+                user.name.isEmpty ? '?' : user.name[0].toUpperCase(),
+                style: const TextStyle(
+                    fontWeight: FontWeight.w800, color: kPrimaryDark),
+              ),
+            ),
+          ),
         ),
       ],
     );
