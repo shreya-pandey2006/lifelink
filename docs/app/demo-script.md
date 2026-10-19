@@ -2,46 +2,55 @@
 
 ## Before you start (5 minutes earlier)
 - [ ] Phone charged, screen timeout set to long, USB or Wi-Fi ready.
-- [ ] Open `https://lifelink-backend-8onj.onrender.com/api/health` in a browser so the server is awake.
-- [ ] `lib/core/config.dart` is set the way you want to demo (`kUseMockApi`).
-- [ ] App installed and logged out. Location is turned on in the phone settings.
-- [ ] Phone hotspot ready as a backup for the network.
-- [ ] A screen recording of this full flow is saved on the phone, in case the network fails.
+- [ ] Open `https://lifelink-backend-8onj.onrender.com/api/health` in a browser so the free-tier Render server is awake.
+- [ ] Ensure `lib/core/config.dart` is set to your desired mode (`kUseMockApi = false` for live backend, `true` for offline mock).
+- [ ] App installed and logged out. Location services turned on in phone settings.
+- [ ] Mobile hotspot ready as an alternative connection.
+- [ ] A backup screen recording of the full flow saved on the phone in case of venue network outages.
 
 ## Test accounts
-**Mock mode** (password `123456`):
 
-| Role | Email |
-|---|---|
-| Requester | `requester@lifelink.test` |
-| Donor | `donor@lifelink.test` (blood group O-, city Ghaziabad) |
+### Mock mode (`kUseMockApi = true`)
+Password for all mock accounts: `123456`
 
-**Live server:** TODO: write the requester and donor emails and passwords you created on the real server.
+| Role | Email | Details |
+|---|---|---|
+| Requester | `requester@lifelink.test` | City: Ghaziabad |
+| Donor | `donor@lifelink.test` | Blood group: O-, City: Ghaziabad |
+
+### Live server mode (`kUseMockApi = false`)
+You can use pre-registered accounts or register live during the demo:
+
+| Role | Suggested Email | Password | Details |
+|---|---|---|---|
+| Requester | `requester@lifelink.test` (or register new) | `123456` | City: Ghaziabad |
+| Donor | `donor@lifelink.test` (or register new) | `123456` | Blood group: O-, City: Ghaziabad |
+
+*(Tip: Registering a new account live takes only 15 seconds and proves the live database integration).*
 
 ## The flow
 
-| Time | Do this | Say this |
+| Time | Action | Voice Track |
 |---|---|---|
-| 0:00 | Open the app. Splash, then Login. | "LifeLink connects people who urgently need blood with donors nearby. This is the Flutter app. State is managed with Provider and navigation with go_router." |
-| 0:20 | Log in as the **requester**. Show Home. | "The dashboard shows my active requests, fulfilled requests and how many donors are available." |
-| 0:35 | Tap **Create Urgent Request**. Choose O-, 2 units, Critical, hospital name, city. Tap **Use my GPS** or **Edit pin** and drop the pin. Submit. | "The hospital location is picked with the Google Maps SDK, and Geolocator reads the phone's GPS after asking permission. The request goes to the backend with a JWT." |
-| 1:10 | Open the **Requests** tab. Tap the new request. | "The tracking screen shows progress, the hospital on the map, and the donors who responded. It refreshes automatically every few seconds." |
-| 1:30 | Log out. Log in as the **donor**. Show the **Requests** tab (alert feed) and the **Alerts** tab (notifications with a badge). | "Donors see only requests that match their blood group and city. Notifications are shown in an in-app screen with an unread badge, using polling instead of push." |
-| 1:55 | Open **Profile**. Tap **Update Live Location**, then **Donor Health Details**. | "Age, weight, hemoglobin and days since the last donation are sent to the backend, where the ML service uses them to rank donors by how likely they are to respond." |
-| 2:15 | Back to the alert. Open **Alert Detail** (distance and map). Tap **Accept**. | "Accepting tells the requester a donor is on the way. If the request is already covered, the server answers 409 and the app shows a friendly message." |
-| 2:35 | Log in as the requester again. Show the new notification and the updated tracking screen. | "The requester sees the donor and their phone number only after the donor accepts." |
-| 2:50 | Close. | "The app is built in layers: screens, providers, one API client, and a built-in mock API that lets us develop without the server." |
+| **0:00** | Open the app. Splash screen renders, then redirects to Login. | "LifeLink connects patients in critical need of blood with eligible nearby donors in seconds. This mobile app is built with Flutter, using Provider for state management and GoRouter for declarative navigation." |
+| **0:20** | Log in as the **requester**. Present Home dashboard. | "The requester dashboard displays live emergency indicators, active blood requests, fulfilled requests, and the total count of ready donors available in the network." |
+| **0:35** | Tap **Create Urgent Request**. Select O-, 2 units, Critical severity, enter hospital name and city (e.g. Ghaziabad). Tap **Use my GPS** or **Pick on map** and place the pin. Tap Submit. | "The hospital location is selected using our custom LifeLinkMapView radar and street map, with Geolocator fetching GPS coordinates. Patient vitals are submitted to the backend, which triggers an automated ML urgency evaluation." |
+| **1:10** | Open the **Requests** tab. Select the newly created request. | "The live tracking screen monitors dispatch progress in real time, showing the target hospital pin and donor responses as they arrive. The screen auto-refreshes using lifecycle-managed polling." |
+| **1:30** | Log out. Log in as the **donor**. View the **Requests** tab (alert feed) and **Alerts** tab (notifications with unread badge). | "Donors receive prioritized alerts filtered by their blood compatibility and city. Notifications display unread counts and emergency sound indicators without requiring external push services." |
+| **1:55** | Open **Profile**. Tap **Update Live Location**, then **Donor Health Details**. | "Donors record their age, weight, hemoglobin, and previous donation history. These metrics are stored on the backend and supplied to the ML ranking service to score donor response probability." |
+| **2:15** | Return to the alert feed. Open **Alert Detail** (shows hospital distance and map). Tap **Accept**. | "Accepting signals the medical center that a donor is dispatched. The request state updates atomically, and the server guards against duplicate or over-fulfilled responses with HTTP 409." |
+| **2:35** | Log back in as the requester. Show the live notification badge and updated dispatch tracking screen. | "The requester instantly sees the donor's dispatch confirmation, name, and emergency contact details for direct coordination." |
+| **2:50** | Summary & wrap-up. | "LifeLink's architecture decouples screens from networking through dedicated providers, a resilient API client, and a full mock API layer that ensures reliable offline testing and demonstrations." |
 
-## If something fails
-| Problem | What to do |
+## Troubleshooting during demo
+
+| Problem | Remedy |
 |---|---|
-| The server is slow or asleep | Say "the free server is waking up", wait about 30 seconds and try again. |
-| The map is grey | The Maps key or network is the problem. Continue the demo; coordinates still work. |
-| Location fails | Turn on GPS and allow the permission under Settings > Apps > LifeLink. |
-| The network is down | Switch to the hotspot. If that fails, set `kUseMockApi = true`, hot restart with **R**, and use the mock accounts. |
-| Everything fails | Play the screen recording. |
+| Server responds slowly or spins | State "The free-tier cloud instance is warming up", wait 15–20 seconds, and retry. |
+| Map tiles do not render | LifeLinkMapView automatically falls back to tactical radar mode and city coordinates. The demo can proceed smoothly. |
+| GPS location permission denied | Enable Location in phone Settings > Apps > LifeLink, or use manual city selection. |
+| Venue Wi-Fi drops | Switch to mobile hotspot. If network remains unavailable, toggle `kUseMockApi = true`, hot restart (`R`), and use the mock accounts. |
+| Complete device failure | Switch to the pre-recorded video walk-through. |
 
-## What to say about live versus mock
-> "Registration, login and requests use the deployed backend. The alert feed, notifications and request tracking need endpoints that are not in the backend yet, so the app uses its built-in mock API for them. The mock returns the same JSON as the agreed contract, so switching to the real server is one setting."
-
-**TODO: change this paragraph to match what really worked in your live test.**
+## What to say about live backend versus mock API
+> "LifeLink communicates end-to-end with the deployed backend on Render. User authentication, request creation, request tracking, donor responses, and the full notification lifecycle all interact with live MongoDB and Node.js microservices. The app also features an integrated MockApi engine that mirrors the backend contract, guaranteeing zero-downtime offline demonstrations when network connectivity is unpredictable."

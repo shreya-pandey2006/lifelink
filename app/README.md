@@ -9,7 +9,7 @@
 - **Role-Based Experience**:
   - **Requesters**: Create emergency blood requests, track real-time dispatch progress, view matched donors, and manage active requests.
   - **Donors**: Receive nearby SOS emergency blood alerts, view interactive dispatch maps, accept or decline alerts, and track donation history.
-- **Tactical Medical Radar (`LifeLinkMapView`)**: Interactive street map and radar sweep visualizer using OpenStreetMap with ESRI fallback (no watermarks or API lockouts).
+- **Tactical Medical Radar (`LifeLinkMapView`)**: Interactive cross-platform medical radar and street map component with OSM & ESRI tile providers. Features pulse sweep animations, concentric distance rings, live GPS tracking, and a tactical blueprint grid mode with zero watermark/API restrictions.
 - **AI Urgency Triage**: Evaluates patient indicators to classify requests into Normal, Urgent, or Critical severity.
 - **Live Notifications & Hotlines**: SOS notifications with sound/siren alerts, unread counts, and speed dials for emergency services (108 Ambulance, 104 Blood Helpline).
 

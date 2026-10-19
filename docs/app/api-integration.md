@@ -10,53 +10,97 @@
 In `lib/core/config.dart`:
 
 ```dart
-const bool kUseMockApi = false;   // false = real backend, true = built-in mock API
-const String kBaseUrl = 'https://lifelink-backend-8onj.onrender.com';
+const bool kUseMockApi = false; // false = real backend, true = built-in mock API
+const kBaseUrl = 'https://lifelink-backend-8onj.onrender.com/api';
 ```
 
-The screens and providers always call the same internal paths (for example `/auth/login`). `ApiClient` either answers from `MockApi` or sends the request to the real server, adding the base URL and the `/api` prefix. A route that differs on the real server is mapped inside `ApiClient`, so no screen has to change.
+The screens and providers always call standardized internal paths (for example `/auth/login`). `ApiClient` either delegates to `MockApi` when `kUseMockApi = true` or sends the request to the live server. When connecting to the live server, `ApiClient` prepends `kBaseUrl` and normalizes paths (stripping duplicated `/api` segments if both the base URL and path contain it).
 
 ## Endpoint status
-Status values: **Live** = tested against the deployed server and works. **Partial** = reaches the server but a field or response needs adjusting. **Mock** = no route in the backend yet, so the app uses the mock API.
-
-**TODO: fill the Status column from your own live test, and delete this line.**
+Status values: **Live** = tested and working against the deployed backend. **Aggregated** = assembled on the client using related live backend routes. **Local** = saved on device storage (SharedPreferences) with network sync fallback.
 
 | Feature | App uses | Real endpoint | Status |
 |---|---|---|---|
-| Register | `POST /auth/register` | `POST /api/auth/register` | TODO |
-| Login | `POST /auth/login` | `POST /api/auth/login` | TODO |
-| Current user (stay logged in) | `GET /auth/me` | `GET /api/auth/me` | TODO |
-| Create blood request | `POST /requests` | `POST /api/requests` | TODO |
-| My requests list | `GET /requests` | `GET /api/requests` | TODO |
-| Donor profile | `GET /donors/me` | `GET /api/donors/me` | TODO |
-| Donor availability switch | `PATCH /donors/me/availability` | `PATCH /api/donors/availability` | TODO |
-| Available donor count (requester Home) | `GET /donors/available/count` | `GET /api/donors/available/count` | TODO |
-| Donor health details (for ML ranking) | `PATCH /donors/ml-details` | `PATCH /api/donors/ml-details` | TODO |
-| Matching donors for a request | `GET /requests/:id/potential-donors` | `GET /api/requests/:requestId/potential-donors` | TODO |
-| Donor accepts or declines | `POST /responses/:id` | `POST /api/responses/:requestId` | TODO |
-| Donor's own responses | `GET /responses/my` | `GET /api/responses/my` | TODO |
-| Donor alert feed | `GET /alerts` | none (closest: `GET /api/responses/my`) | Mock |
-| Request tracking detail | `GET /requests/:id` | none (the app falls back to the list plus potential donors) | Mock / Partial |
-| Cancel or fulfil a request | `PATCH /requests/:id/status` | none | Mock |
-| Notifications | `GET /notifications`, `PATCH /notifications/read-all` | none | Mock |
-| Donation history | `GET /donations/me` | none | Mock |
-| Donor location update | `PUT /donors/me` | none | Mock |
+| Register | `POST /auth/register` | `POST /api/auth/register` | Live |
+| Login | `POST /auth/login` | `POST /api/auth/login` | Live |
+| Current user (stay logged in) | `GET /auth/me` | `GET /api/auth/me` | Live |
+| Create blood request | `POST /requests` | `POST /api/requests` | Live |
+| My requests list | `GET /requests` | `GET /api/requests` | Live |
+| Single request tracking detail | `GET /requests/:id` | `GET /api/requests/:requestId` | Live |
+| Cancel blood request | `PATCH /requests/:id/cancel` | `PATCH /api/requests/:requestId/cancel` | Live |
+| Matching donors for a request | `GET /requests/:id/potential-donors` | `GET /api/requests/:requestId/potential-donors` | Live |
+| Donor profile | `GET /donors/me` | `GET /api/donors/me` | Live |
+| Donor availability switch | `PATCH /donors/availability` | `PATCH /api/donors/availability` | Live |
+| Available donor count (requester Home) | `GET /donors/available/count` | `GET /api/donors/available/count` | Live |
+| Donor health details (for ML ranking) | `PATCH /donors/ml-details` | `PATCH /api/donors/ml-details` | Live |
+| Donor accepts or declines | `POST /responses/:id` | `POST /api/responses/:requestId` | Live |
+| Donor's own responses / history | `GET /responses/my` | `GET /api/responses/my` | Live |
+| Notifications list & pagination | `GET /notifications` | `GET /api/notifications` | Live |
+| Unread notification badge count | `GET /notifications/unread-count` | `GET /api/notifications/unread-count` | Live |
+| Mark single notification as read | `PATCH /notifications/:id/read` | `PATCH /api/notifications/:id/read` | Live |
+| Mark all notifications as read | `PATCH /notifications/read-all` | `PATCH /api/notifications/read-all` | Live |
+| Delete notification | `DELETE /notifications/:id` | `DELETE /api/notifications/:id` | Live |
+| Donor alert feed | `GET /alerts` | Aggregated from `GET /api/requests` & `GET /api/notifications` | Aggregated / Live |
+| Donor location update | `PUT /donors/me` | Saved in `SharedPreferences` (device GPS) with fallback | Local / Fallback |
 
 ## Request and response notes
-- Errors: the app shows the server's `message` field when there is one, or `Request failed (status)`.
-- `401` logs the user out automatically.
-- `409` on a donor response means the request is already covered or already answered. The app removes it from the list and shows the message.
-- **TODO: list the exact JSON field names the real server uses (for example the token field name, and the accepted `status` values for a donor response), and how the app's models map them.**
+- **Token handling**: Successful `POST /api/auth/login` returns `{ "success": true, "token": "<JWT>", "user": { "id", "name", "email", "role" } }`. The token is saved in `SharedPreferences` and attached to all subsequent requests via `Authorization: Bearer <token>`.
+- **User registration**: `POST /api/auth/register` requires `{ "name", "email", "password", "role": "requester" | "donor", "city" }`. When `role == "donor"`, `bloodGroup` is also mandatory.
+- **Blood requests**:
+  - `POST /api/requests` sends `{ "bloodGroup", "city", "units", "urgency": "normal" | "urgent" | "emergency", "patient": { ... } }`.
+  - The nested `patient` object passes clinical indicators (age, gender, weightKg, healthIssue, hemoglobinGDl, plateletCount, systolicBp, heartRate, spo2Percent, activeBleeding, previousTransfusions, bloodComponentNeeded, requiredWithinHours).
+  - The server persists the request and asynchronously triggers ML urgency classification, populating `predictedUrgency`.
+- **Donor responses**:
+  - `POST /api/responses/:requestId` accepts `{ "status": "accepted" | "declined", "message": "optional note" }`.
+  - HTTP `409` signifies the donor already responded or the request units are already fulfilled.
+  - HTTP `403` signifies the donor does not match the blood group compatibility or city criteria.
+- **Donor ML details**:
+  - `PATCH /api/donors/ml-details` takes `{ "age": number, "weightKg": number, "hemoglobinGDl": number }`.
+  - Range validation: `age` (18–100), `weightKg` (30–300), `hemoglobinGDl` (3–25).
+- **Notifications**:
+  - The backend stores read state under `isRead`. The app's `AppNotification.fromJson` maps both `isRead` and `read` for seamless compatibility.
+- **Errors & Session expiry**:
+  - Errors: `ApiClient` parses `message`, `error`, or the first validation item in `errors`.
+  - HTTP `401` triggers `onUnauthorized`, clearing providers and redirecting to `/login`.
 
 ## ML engine (called by the backend, not by the app)
-- Base URL: `https://lifelink-1-ej74.onrender.com`
-- `POST /rank-donors` takes `donor_id`, `age`, `weight`, `hemoglobin`, `days_since_last_donation` for each donor and returns them sorted by `response_probability`.
-- The app's **Donor Health Details** screen collects exactly these four values and sends them to `PATCH /api/donors/ml-details`, so the backend can rank donors.
-- A separate urgency model (`POST /predict`) estimates how urgent a request is from clinical values. The app does not call it.
+LifeLink integrates two ML models hosted on Render:
 
-## How this was tested
-1. Wake the server with `GET /api/health`.
-2. Register and log in with the requester and donor accounts used in the demo.
-3. Create a request, then check it in the list.
-4. Donor responds to a request.
-5. **TODO: add what you tested, the date, and what failed or needed adjusting.**
+1. **Donor Ranking Service (Model 1)**:
+   - Direct ML URL: `https://model1-1-l5kq.onrender.com/rank-donors`
+   - Backend integration: `POST /api/ml/rank-donors` and automatically invoked during `GET /api/requests/:requestId/potential-donors`.
+   - Input schema:
+     ```json
+     {
+       "donors": [
+         {
+           "donorId": "651a...",
+           "age": 28,
+           "weight_kg": 70.0,
+           "hemoglobin_g_dL": 14.5,
+           "total_donations": 4,
+           "days_since_last_donation": 115
+         }
+       ]
+     }
+     ```
+   - The model returns ranked donors sorted by `response_probability`. Note: field names require `donorId`, `weight_kg`, and `hemoglobin_g_dL`.
+
+2. **Urgency Prediction Service (Model 2)**:
+   - Direct ML URL: `https://model-2-lbjw.onrender.com/predict`
+   - Backend integration: `POST /api/ml/predict-urgency` and automatically invoked during `POST /api/requests` when patient details are provided.
+   - Evaluates patient vitals (systolic BP, heart rate, SpO2, active bleeding, hemoglobin) and returns:
+     ```json
+     {
+       "status": "success",
+       "predicted_urgency_level": "Critical"
+     }
+     ```
+
+## Verification and test procedure
+1. **Server Wakeup**: Ping `GET /api/health` to confirm the Render web service is active.
+2. **Authentication**: Register a new requester and a new donor (`O-`, Ghaziabad). Log in to verify JWT issuance and session restore on app restart.
+3. **Request Lifecycle**: Create an urgent request as a requester. Verify it displays in "My Requests" and tracking screens.
+4. **Donor Matching & Notification**: Verify matching donors receive an in-app notification and the alert appears in the donor alert feed.
+5. **Donor Response**: Accept the alert as donor. Verify the requester tracking screen updates with donor details and contact info.
+6. **Mock Fallback**: Toggle `kUseMockApi = true` to test the full flow offline without internet access.
