@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../core/constants.dart';
 import '../core/format.dart';
 import '../core/theme.dart';
@@ -18,6 +19,9 @@ class RequestCard extends StatelessWidget {
         ? 0.0
         : (r.unitsAccepted / r.units).clamp(0.0, 1.0).toDouble();
 
+    final VoidCallback? effectiveTap = onTap ??
+        (r.id.isNotEmpty ? () => context.push('/request/${r.id}') : null);
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -36,7 +40,7 @@ class RequestCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(22),
         child: InkWell(
           borderRadius: BorderRadius.circular(22),
-          onTap: onTap,
+          onTap: effectiveTap,
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -122,24 +126,38 @@ class RequestCard extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Row(
-                      children: [
-                        Text(
-                          r.status == 'open'
-                              ? 'Track Request Live'
-                              : 'View Details',
-                          style: const TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w800,
-                            color: kPrimaryDark,
+                    Material(
+                      color: Colors.transparent,
+                      borderRadius: BorderRadius.circular(10),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(10),
+                        onTap: effectiveTap,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 4),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                r.status == 'open'
+                                    ? 'Track Request Live'
+                                    : 'View Details',
+                                style: const TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: kPrimaryDark,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              const Icon(Icons.arrow_forward_rounded,
+                                  size: 14, color: kPrimaryDark),
+                            ],
                           ),
                         ),
-                        const SizedBox(width: 4),
-                        const Icon(Icons.arrow_forward_rounded,
-                            size: 14, color: kPrimaryDark),
-                      ],
+                      ),
                     ),
-                    if (onMatchingDonors != null)
+                    if (onMatchingDonors != null &&
+                        (r.status == 'open' || r.status == 'matched'))
                       Material(
                         color: const Color(0xFFFDE8E8),
                         borderRadius: BorderRadius.circular(12),

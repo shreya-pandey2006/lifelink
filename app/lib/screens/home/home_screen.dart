@@ -10,6 +10,7 @@ import '../../providers/alert_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/donor_provider.dart';
 import '../../providers/request_provider.dart';
+import '../../widgets/potential_donors_sheet.dart';
 import '../../widgets/request_card.dart';
 import '../../widgets/ui.dart';
 class HomeScreen extends StatefulWidget {
@@ -111,7 +112,15 @@ class _HomeScreenState extends State<HomeScreen> {
       if (recent.isEmpty)
         const Text('No requests yet. Tap "Create Urgent Request" above.', style: TextStyle(color: kMuted))
       else
-        for (final r in recent) ...[ RequestCard(r), const SizedBox(height: 12),
+        for (final r in recent) ...[
+          RequestCard(
+            r,
+            onTap: () => context.push('/request/${r.id}'),
+            onMatchingDonors: (r.status == 'open' || r.status == 'matched')
+                ? () => showPotentialDonorsSheet(context, r)
+                : null,
+          ),
+          const SizedBox(height: 12),
         ],
     ];
   }

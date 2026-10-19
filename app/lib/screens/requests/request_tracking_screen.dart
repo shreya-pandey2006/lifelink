@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../core/format.dart';
 import '../../core/theme.dart';
@@ -27,8 +28,14 @@ class _RequestTrackingScreenState extends State<RequestTrackingScreen> {
     super.initState();
     Future.microtask(() {
       if (!mounted) return;
+      final reqs = context.read<RequestProvider>().requests;
+      final match = reqs.where((r) => r.id == widget.requestId);
       final p = context.read<TrackingProvider>();
-      p.clear();
+      if (match.isNotEmpty) {
+        p.seed(match.first);
+      } else {
+        p.clear();
+      }
       p.load(widget.requestId);
     });
     _timer = Timer.periodic(const Duration(seconds: 8), (_) {
@@ -137,12 +144,27 @@ class _RequestTrackingScreenState extends State<RequestTrackingScreen> {
       );
     }
 
+    final String pageTitle = r == null
+        ? 'Request Tracking'
+        : (r.status == 'open' ? 'Live Request Tracking' : 'Request Details');
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: kBackground,
         surfaceTintColor: Colors.transparent,
-        title: const Text('Request Tracking',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded),
+          tooltip: 'Back',
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/home');
+            }
+          },
+        ),
+        title: Text(pageTitle,
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
       ),
       body: body,
     );
