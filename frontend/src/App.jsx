@@ -2,6 +2,7 @@ import { useState } from "react";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
+import Settings from "./pages/Settings";
 
 const API_URL = "https://lifelink-backend-8onj.onrender.com";
 
@@ -78,8 +79,22 @@ function App() {
     setPage("login");
   }
 
+  if (page === "settings") {
+    return (
+      <Settings
+        onBack={() => setPage("dashboard")}
+        onLogout={handleLogout}
+      />
+    );
+  }
+
   if (page === "dashboard") {
-    return <Dashboard onLogout={handleLogout} />;
+    return (
+      <Dashboard
+        onLogout={handleLogout}
+        onOpenSettings={() => setPage("settings")}
+      />
+    );
   }
 
   if (page === "register") {
