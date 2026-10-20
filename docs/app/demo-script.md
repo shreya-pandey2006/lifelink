@@ -34,7 +34,7 @@ You can use pre-registered accounts or register live during the demo:
 |---|---|---|
 | **0:00** | Open the app. Splash screen renders, then redirects to Login. | "LifeLink connects patients in critical need of blood with eligible nearby donors in seconds. This mobile app is built with Flutter, using Provider for state management and GoRouter for declarative navigation." |
 | **0:20** | Log in as the **requester**. Present Home dashboard. | "The requester dashboard displays live emergency indicators, active blood requests, fulfilled requests, and the total count of ready donors available in the network." |
-| **0:35** | Tap **Create Urgent Request**. Select O-, 2 units, Critical severity, enter hospital name and city (e.g. Ghaziabad). Tap **Use my GPS** or **Pick on map** and place the pin. Tap Submit. | "The hospital location is selected using our custom LifeLinkMapView radar and street map, with Geolocator fetching GPS coordinates. Patient vitals are submitted to the backend, which triggers an automated ML urgency evaluation." |
+| **0:35** | Tap **Create Urgent Request**. Select O-, 2 units, Critical severity, enter hospital name and city (e.g. Ghaziabad). Tap **Use my GPS** or **Pick on map** and place the pin. Tap Submit. | "The hospital location is selected using our Google Maps location picker and GPS integration with Geolocator. Patient vitals are submitted to the backend, which triggers an automated ML urgency evaluation." |
 | **1:10** | Open the **Requests** tab. Select the newly created request. | "The live tracking screen monitors dispatch progress in real time, showing the target hospital pin and donor responses as they arrive. The screen auto-refreshes using lifecycle-managed polling." |
 | **1:30** | Log out. Log in as the **donor**. View the **Requests** tab (alert feed) and **Alerts** tab (notifications with unread badge). | "Donors receive prioritized alerts filtered by their blood compatibility and city. Notifications display unread counts and emergency sound indicators without requiring external push services." |
 | **1:55** | Open **Profile**. Tap **Update Live Location**, then **Donor Health Details**. | "Donors record their age, weight, hemoglobin, and previous donation history. These metrics are stored on the backend and supplied to the ML ranking service to score donor response probability." |
@@ -47,7 +47,7 @@ You can use pre-registered accounts or register live during the demo:
 | Problem | Remedy |
 |---|---|
 | Server responds slowly or spins | State "The free-tier cloud instance is warming up", wait 15–20 seconds, and retry. |
-| Map tiles do not render | LifeLinkMapView automatically falls back to tactical radar mode and city coordinates. The demo can proceed smoothly. |
+| Map tiles do not render | Google Maps displays the pinned hospital marker and coordinates cleanly with automatic fallback to city center coordinates if GPS is unavailable. |
 | GPS location permission denied | Enable Location in phone Settings > Apps > LifeLink, or use manual city selection. |
 | Venue Wi-Fi drops | Switch to mobile hotspot. If network remains unavailable, toggle `kUseMockApi = true`, hot restart (`R`), and use the mock accounts. |
 | Complete device failure | Switch to the pre-recorded video walk-through. |

@@ -9,7 +9,7 @@ Concise, accurate answers to the technical and architectural questions most like
 LifeLink is an emergency blood dispatch application. Requesters can post urgent blood requests complete with hospital coordinates, severity levels, and clinical vitals. Donors receive alerts matching their blood group and city, view hospital route/distance details, and accept or decline in real time. Both roles receive status updates through a live in-app notification center.
 
 **What did you build yourself?**  
-The entire Flutter mobile client: responsive UI in dark-mode medical aesthetics, Provider-based state management, declarative GoRouter navigation with auth guards, the resilient HTTP `ApiClient`, device GPS integration, custom `LifeLinkMapView` tactical radar visualizer, and a full-featured offline `MockApi` engine. I integrated the app with the deployed Node.js/Express backend and FastAPI ML microservices built by the team.
+The entire Flutter mobile client: responsive UI in dark-mode medical aesthetics, Provider-based state management, declarative GoRouter navigation with auth guards, the resilient HTTP `ApiClient`, device GPS integration, native Google Maps integration, and a full-featured offline `MockApi` engine. I integrated the app with the deployed Node.js/Express backend and FastAPI ML microservices built by the team.
 
 **How is the app structured?**  
 In clean layers:
@@ -87,7 +87,7 @@ All timers are safely cancelled in `dispose()`.
 Polling introduces a slight latency (up to the interval duration) and consumes more battery/network requests. The production upgrade would be WebSocket (Socket.IO) or Firebase Cloud Messaging (FCM).
 
 **How does map rendering and location picking work?**  
-The app uses `LifeLinkMapView`, a high-performance cross-platform tactical medical radar and street map component with OSM & ESRI tile providers. It avoids the paid billing accounts, restricted API keys, and grey watermark lockouts of Google Maps, while working natively across Android, iOS, and Flutter Web. It renders live rotating radar sweeps, concentric distance rings (25%, 50%, 100%), and a tactical blueprint grid toggle. It converts GPS coordinates (latitude/longitude) to screen pixels to place hospital/donor pins and draw the 10 km dispatch radius. Requesters can drop hospital pins interactively, and donors view straight-line hospital distances computed via the Haversine formula.
+The app integrates `google_maps_flutter` for native, hardware-accelerated mapping across the emergency dispatch flow. It renders destination hospital markers, donor GPS locations, and provides an interactive map picker for dropping precise destination coordinates. Pin placement is synchronized with Geolocator GPS coordinates and city center fallbacks, allowing requesters to pinpoint exact emergency trauma centers. Donors view straight-line hospital distances computed via the Haversine formula alongside map previews.
 
 ---
 

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart' show LatLng;
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../core/theme.dart';
-import 'lifelink_map_view.dart';
 
 class LocationCard extends StatelessWidget {
   final LatLng? pin;
@@ -30,18 +29,24 @@ class LocationCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (p != null)
-            LifeLinkMapView(
-              key: ValueKey('${p.latitude},${p.longitude}'),
-              latitude: p.latitude,
-              longitude: p.longitude,
-              zoom: 15,
+            SizedBox(
               height: 150,
-              showRadarRings: false,
-              interactive: false,
-              showControls: false,
-              markerTitle: 'Hospital Pin',
-              markerSubtitle:
-                  '${p.latitude.toStringAsFixed(4)}, ${p.longitude.toStringAsFixed(4)}',
+              child: IgnorePointer(
+                child: GoogleMap(
+                  key: ValueKey('${p.latitude},${p.longitude}'),
+                  initialCameraPosition: CameraPosition(target: p, zoom: 15),
+                  markers: {
+                    Marker(
+                      markerId: const MarkerId('hospital'),
+                      position: p,
+                    ),
+                  },
+                  liteModeEnabled: true,
+                  zoomControlsEnabled: false,
+                  myLocationButtonEnabled: false,
+                  mapToolbarEnabled: false,
+                ),
+              ),
             ),
           Padding(
             padding: const EdgeInsets.all(12),

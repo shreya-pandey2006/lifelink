@@ -34,7 +34,7 @@ lib/
   providers/           auth, request, alert, donor, tracking, notification, history
   router/              App navigation routes (go_router) and authentication guards
   screens/             auth, home, requests, alerts, notifications, profile, map
-  widgets/             Reusable UI (LifeLinkMapView radar map, hospital card, status chips)
+  widgets/             Reusable UI (HospitalMap with Google Maps, location cards, status chips)
 ```
 
 ## 3. State management: Provider
@@ -89,7 +89,7 @@ To maintain low latency without third-party push notification dependencies, scre
 ## 7. Location and maps
 
 - **Geolocator**: Retrieves high-accuracy device GPS coordinates with permission handling via `LocationService`.
-- **Tactical Medical Radar (`LifeLinkMapView`)**: The map display uses an interactive cross-platform medical radar and street map component with OSM & ESRI tile providers. Visualizes live dispatch radiuses (10 km concentric ranges, pulse sweep animations, and tactical blueprint grid toggle) with zero watermark lockouts or paid API billing blockers across mobile and Flutter Web.
+- **Google Maps Integration (`google_maps_flutter`)**: Native Google Maps displays hospital locations, donor GPS coordinates, and pin-drop hospital placement across mobile with satellite and street mapping.
 - **Pin Placement**: Requesters can drop hospital coordinates interactively on `LocationPickerScreen`, sending precise latitude and longitude with the blood request.
 - **Distance Calculation**: Donor alert cards display straight-line distance to the target hospital using Haversine calculation against the donor's saved coordinates.
 

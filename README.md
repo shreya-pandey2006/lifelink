@@ -56,7 +56,7 @@ In critical medical emergencies, traumas, and scheduled surgeries, locating comp
 |     (Flutter)       |    |   (React 19/Vite)   |                    |  (FastAPI / Render) |
 | - Requesters        |    | - Real-time metrics |                    | - Donor Ranking     |
 | - Donors            |    | - Request audits    |                    | - Urgency Triage    |
-| - Tactical Radar    |    | - User management   |                    +----------+----------+
+| - Interactive Maps  |    | - User management   |                    +----------+----------+
 +----------+----------+    +----------+----------+                               ^
            |                          |                                          |
            +--------------------------+                                          |
@@ -87,7 +87,7 @@ LifeLink is structured into dedicated, decoupled domain folders:
 * **Technology**: Flutter 3.13+ / Dart 3.1+ (Android, iOS, Web).
 * **State Management**: Reactive state management built on `ChangeNotifier` and `Provider` (`AuthProvider`, `RequestProvider`, `AlertProvider`, `DonorProvider`, `TrackingProvider`, `NotificationProvider`, `HistoryProvider`).
 * **Navigation**: Declarative routing via `GoRouter` with auth guards, dynamic redirect on state changes (`refreshListenable`), and a persistent bottom navigation shell.
-* **Tactical Medical Radar & Street Map (`LifeLinkMapView`)**: Cross-platform tactical medical radar and street map component with OSM & ESRI tile providers. Visualizes live dispatch radiuses (10 km concentric ranges, pulse sweep animations, and tactical blueprint grid toggle) with zero watermarks or paid API billing constraints on Android, iOS, and Web.
+* **Interactive Medical Dispatch Maps (`Google Maps`)**: Native Google Maps integration (`google_maps_flutter`) visualizing hospital locations, donor coordinates, pin-drop location selection, and live route destinations with high-accuracy markers and satellite/street mapping.
 * **Dual Operation Mode**: Powered by a central `ApiClient` that connects to the live deployed cloud backend, with an embedded local `MockApi` for zero-downtime offline demonstrations.
 
 ### 2. Backend Microservice (`/backend`)
@@ -137,7 +137,7 @@ All architectural guides, API specifications, and demonstration scripts are loca
   * *Donors*: Tailored emergency alert feed filtered by antigen compatibility and city, hospital distance calculation, and health metric tracking.
   * *Admins*: Consolidated metrics and fleet-wide request moderation.
 * **🎯 Dual AI Integration**: Automatic urgency classification on request creation and response probability scoring for donor selection.
-* **🗺️ Tactical Medical Radar**: Real-time rotating radar sweep, concentric dispatch range rings (25%, 50%, 100%), tactical blueprint grid mode, and interactive hospital pin dropping.
+* **🗺️ Interactive Google Maps**: Hospital location pinning, real-time donor location previews, destination markers, and camera centering.
 * **🔔 Live Notification Feed**: Lifecycle-aware periodic polling (8s–20s) with unread indicators and emergency sound alert styling without third-party push dependencies.
 * **🛡️ Defensive Offline Fallback**: One-click switch (`kUseMockApi`) enabling a complete in-memory mock backend for offline testing.
 
@@ -155,7 +155,7 @@ LifeLink/
 │   │   ├── router/             # GoRouter navigation & auth guards
 │   │   ├── screens/            # UI feature screens (auth, requests, alerts, etc.)
 │   │   ├── services/           # ApiClient, MockApi, location services
-│   │   └── widgets/            # LifeLinkMapView, hospital cards, status chips
+│   │   └── widgets/            # Hospital maps, location cards, status chips
 │   └── pubspec.yaml            # Flutter dependencies & assets
 │
 ├── backend/                    # Express.js REST API

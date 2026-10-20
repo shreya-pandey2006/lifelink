@@ -9,7 +9,7 @@
 - **Role-Based Experience**:
   - **Requesters**: Create emergency blood requests, track real-time dispatch progress, view matched donors, and manage active requests.
   - **Donors**: Receive nearby SOS emergency blood alerts, view interactive dispatch maps, accept or decline alerts, and track donation history.
-- **Tactical Medical Radar (`LifeLinkMapView`)**: Interactive cross-platform medical radar and street map component with OSM & ESRI tile providers. Features pulse sweep animations, concentric distance rings, live GPS tracking, and a tactical blueprint grid mode with zero watermark/API restrictions.
+- **Interactive Medical Dispatch Maps (`Google Maps`)**: Native Google Maps integration (`google_maps_flutter`) for hospital destination markers, interactive pin placement, and donor location visualization.
 - **AI Urgency Triage**: Evaluates patient indicators to classify requests into Normal, Urgent, or Critical severity.
 - **Live Notifications & Hotlines**: SOS notifications with sound/siren alerts, unread counts, and speed dials for emergency services (108 Ambulance, 104 Blood Helpline).
 
@@ -25,7 +25,7 @@ lib/
 ├── router/       # App navigation with GoRouter & auth redirect guards
 ├── screens/      # Feature screens (alerts, auth, home, profile, requests)
 ├── services/     # API client, device location, ML scoring, and local storage
-└── widgets/      # Reusable UI components (LifeLinkMapView, cards, chips)
+└── widgets/      # Reusable UI components (HospitalMap, cards, chips)
 ```
 
 ---

@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart' show LatLng;
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../core/theme.dart';
 import '../../services/location_service.dart';
-import '../../widgets/lifelink_map_view.dart';
 import '../../widgets/ui.dart';
 
 const _cityCenters = {
@@ -53,6 +52,7 @@ class LocationPickerScreen extends StatefulWidget {
 }
 
 class _LocationPickerScreenState extends State<LocationPickerScreen> {
+  GoogleMapController? _controller;
   LatLng? _picked;
   bool _locating = false;
 
@@ -77,6 +77,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
       final pos = await LocationService.currentPosition();
       final point = LatLng(pos.latitude, pos.longitude);
       setState(() => _picked = point);
+      await _controller?.animateCamera(CameraUpdate.newLatLngZoom(point, 16));
     } on LocationException catch (e) {
       _toast(e.message);
     } catch (_) {
@@ -94,7 +95,6 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
   @override
   Widget build(BuildContext context) {
     final picked = _picked;
-    final center = picked ?? _start;
 
     return Scaffold(
       appBar: AppBar(
@@ -105,24 +105,23 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
       ),
       body: Stack(
         children: [
-          Positioned.fill(
-            child: LifeLinkMapView(
-              key: ValueKey(
-                  'picker_${center.latitude.toStringAsFixed(4)},${center.longitude.toStringAsFixed(4)}'),
-              latitude: center.latitude,
-              longitude: center.longitude,
-              zoom: picked == null ? 13 : 15,
-              height: double.infinity,
-              showRadarRings: false,
-              interactive: true,
-              onTapLocation: (point) => setState(() => _picked = point),
-              markerTitle: 'Hospital Pin',
-              markerSubtitle: picked != null
-                  ? '${picked.latitude.toStringAsFixed(4)}, ${picked.longitude.toStringAsFixed(4)}'
-                  : 'Tap map to drop pin',
-              badgeText: 'Tap Map to Pin',
-              badgeIcon: Icons.touch_app,
+          GoogleMap(
+            initialCameraPosition: CameraPosition(
+              target: _start,
+              zoom: picked == null ? 12 : 16,
             ),
+            onMapCreated: (c) => _controller = c,
+            onTap: (point) => setState(() => _picked = point),
+            markers: {
+              if (picked != null)
+                Marker(
+                  markerId: const MarkerId('hospital'),
+                  position: picked,
+                ),
+            },
+            zoomControlsEnabled: false,
+            myLocationButtonEnabled: false,
+            mapToolbarEnabled: false,
           ),
           Positioned(
             left: 16,

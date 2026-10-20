@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/constants.dart';
@@ -14,7 +15,6 @@ import '../../providers/request_provider.dart';
 import '../../providers/tracking_provider.dart';
 import '../../services/location_service.dart';
 import '../../widgets/ui.dart';
-import '../../widgets/lifelink_map_view.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -819,24 +819,86 @@ class _ProfileScreenState extends State<ProfileScreen> {
           : 'Approximate City Location';
     }
 
+    final point = LatLng(lat, lng);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        LifeLinkMapView(
-          key: ValueKey('$lat,$lng,$isLiveGps'),
-          latitude: lat,
-          longitude: lng,
-          zoom: isLiveGps ? 14 : 12.5,
-          height: 165,
-          isLiveGps: isLiveGps,
-          showRadarRings: true,
-          radarRadiusKm: 10.0,
-          badgeText: isLiveGps ? 'GPS Active' : 'City Center',
-          badgeIcon: isLiveGps ? Icons.gps_fixed : Icons.location_city,
-          badgeColor: isLiveGps ? const Color(0xFF10B981) : kPrimaryDark,
-          markerTitle:
-              isLiveGps ? 'Your Live Location' : '${user.city} Location',
-          markerSubtitle: isLiveGps ? 'GPS Verified' : 'Registered City',
+        ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: SizedBox(
+            height: 155,
+            width: double.infinity,
+            child: Stack(
+              children: [
+                GoogleMap(
+                  key: ValueKey('$lat,$lng,$isLiveGps'),
+                  initialCameraPosition: CameraPosition(
+                    target: point,
+                    zoom: isLiveGps ? 15 : 12,
+                  ),
+                  markers: {
+                    Marker(
+                      markerId: const MarkerId('donor_pin'),
+                      position: point,
+                      infoWindow: InfoWindow(
+                        title: isLiveGps
+                            ? 'Your Live Location'
+                            : '${user.city} Location',
+                        snippet: isLiveGps ? 'GPS Verified' : 'Registered City',
+                      ),
+                    ),
+                  },
+                  liteModeEnabled: true,
+                  zoomControlsEnabled: false,
+                  myLocationButtonEnabled: false,
+                  mapToolbarEnabled: false,
+                ),
+                Positioned(
+                  top: 10,
+                  right: 10,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.92),
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Colors.black12,
+                          blurRadius: 4,
+                          offset: Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          isLiveGps ? Icons.gps_fixed : Icons.location_city,
+                          size: 13,
+                          color: isLiveGps
+                              ? const Color(0xFF10B981)
+                              : kPrimaryDark,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          isLiveGps ? 'GPS Active' : 'City Center',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: isLiveGps
+                                ? const Color(0xFF10B981)
+                                : kPrimaryDark,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
         const SizedBox(height: 8),
         Row(
