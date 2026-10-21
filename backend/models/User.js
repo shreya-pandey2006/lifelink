@@ -4,7 +4,10 @@ const userSchema = new mongoose.Schema(
         name: {
             type: String,
             required: true,
-            trim: true
+            trim: true,
+            minlength: 2,
+            maxlength: 50,
+            match: /^[A-Za-z]+(?:[ '-][A-Za-z]+)*$/
         },
         email: {
             type: String,
@@ -24,13 +27,25 @@ const userSchema = new mongoose.Schema(
         },
         phone: {
             type: String,
-            trim: true
+            trim: true,
+            validate: {
+                validator: function (value) {
+                   return !value || /^\+?[0-9]{10,15}$/.test(value);
+                },
+                message: "Enter a valid phone number"
+            }
         },
         city: {
             type: String,
             required: true,
-            trim: true
-        }
+            trim: true,
+            maxlength: 100,
+            match: /^[A-Za-z]+(?:[ '-][A-Za-z]+)*$/
+        },
+        isEmailVerified: {
+            type: Boolean,
+            default: false
+        },
     },
     {
         timestamps: true
