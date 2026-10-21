@@ -61,18 +61,15 @@ exports.register = async (req, res) => {
 
         if (phone !== undefined && phone !== null && phone !== "") {
             if (
-                typeof phone !== "string" ||
-                !/^\+?[0-9]{10,15}$/.test(phone.trim())
+                typeof phone !== "string" || !/^\+?[0-9]{10}$/.test(phone.trim())
             ) {
                 return res.status(400).json({
                     success: false,
-                    message: "Phone number must contain 10–15 digits, optionally starting with +"
+                    message: "Phone number must contain 10 digits, optionally starting with +"
                 });
             }
-
             cleanPhone = phone.trim();
         }
-
         // Validate email
         const normalizedEmail = email.trim().toLowerCase();
 
@@ -82,7 +79,6 @@ exports.register = async (req, res) => {
                 message: "Please enter a valid email address"
             });
         }
-
         // Check common email domain typos
         const commonDomainTypos = {
             "gmil.com": "gmail.com",

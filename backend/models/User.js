@@ -31,7 +31,7 @@ const userSchema = new mongoose.Schema(
             trim: true,
             validate: {
                 validator: function (value) {
-                    return !value || /^\+?[0-9]{10,15}$/.test(value);
+                    return !value || /^\+?[0-9]{10}$/.test(value);
                 },
                 message: "Enter a valid phone number"
             }
