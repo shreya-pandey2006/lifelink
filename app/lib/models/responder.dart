@@ -22,7 +22,9 @@ class Responder {
       name: pick([j['donorName'], j['name'], user['name'], donor['name']]) ?? 'Donor',
       status: (j['status'] ?? 'potential').toString().toLowerCase(),
       phone: pick([j['phone'], user['phone'], donor['phone']]),
-      respondedAt: DateTime.tryParse((j['respondedAt'] ?? '').toString())?.toLocal(),
+      respondedAt: DateTime.tryParse(
+              (j['respondedAt'] ?? j['createdAt'] ?? '').toString())
+          ?.toLocal(),
     );
   }
 }

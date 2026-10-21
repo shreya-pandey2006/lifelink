@@ -35,6 +35,40 @@ class BloodRequest {
 
   bool get isOpen => status == 'open';
 
+  BloodRequest copyWith({
+    String? id,
+    String? requesterId,
+    String? bloodGroup,
+    int? units,
+    int? unitsAccepted,
+    String? hospitalName,
+    String? city,
+    int? urgency,
+    String? status,
+    double? lat,
+    double? lng,
+    String? predictedUrgency,
+    Map<String, dynamic>? patient,
+    DateTime? createdAt,
+  }) {
+    return BloodRequest(
+      id: id ?? this.id,
+      requesterId: requesterId ?? this.requesterId,
+      bloodGroup: bloodGroup ?? this.bloodGroup,
+      units: units ?? this.units,
+      unitsAccepted: unitsAccepted ?? this.unitsAccepted,
+      hospitalName: hospitalName ?? this.hospitalName,
+      city: city ?? this.city,
+      urgency: urgency ?? this.urgency,
+      status: status ?? this.status,
+      lat: lat ?? this.lat,
+      lng: lng ?? this.lng,
+      predictedUrgency: predictedUrgency ?? this.predictedUrgency,
+      patient: patient ?? this.patient,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+
   factory BloodRequest.fromJson(Map<String, dynamic> raw) {
     final j = (raw['bloodRequest'] is Map)
         ? Map<String, dynamic>.from(raw['bloodRequest'] as Map)
