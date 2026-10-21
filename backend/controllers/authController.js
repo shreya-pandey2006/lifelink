@@ -60,12 +60,11 @@ exports.register = async (req, res) => {
         let cleanPhone;
 
         if (phone !== undefined && phone !== null && phone !== "") {
-            if (
-                typeof phone !== "string" || !/^\+?[0-9]{10}$/.test(phone.trim())
+            if ( typeof phone !== "string" || !/^[0-9]{10}$/.test(phone.trim())
             ) {
                 return res.status(400).json({
                     success: false,
-                    message: "Phone number must contain 10 digits, optionally starting with +"
+                    message: "Phone number must contain exactly 10 digits"
                 });
             }
             cleanPhone = phone.trim();

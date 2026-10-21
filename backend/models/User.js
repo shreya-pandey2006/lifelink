@@ -31,9 +31,9 @@ const userSchema = new mongoose.Schema(
             trim: true,
             validate: {
                 validator: function (value) {
-                    return !value || /^\+?[0-9]{10}$/.test(value);
+                    return !value || /^[0-9]{10}$/.test(value);
                 },
-                message: "Enter a valid phone number"
+                message: "Phone number must contain exactly 10 digits"
             }
         },
         city: {
