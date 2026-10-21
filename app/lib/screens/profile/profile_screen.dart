@@ -344,6 +344,459 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  void _showHospitalNetwork(BuildContext context, String city) {
+    final cityName = city.trim().isNotEmpty ? city.trim() : 'Your City';
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFDE8E8),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(Icons.apartment_rounded,
+                      color: kPrimaryDark, size: 22),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '$cityName Trauma & Blood Bank Network',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: kInk,
+                        ),
+                      ),
+                      const Text(
+                        'Accredited Government & Private Blood Banks',
+                        style: TextStyle(fontSize: 11.5, color: kMuted),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8F7FA),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: const Column(
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.emergency_outlined,
+                          color: kPrimaryDark, size: 18),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'National Blood Transfusion Grid: 1910',
+                          style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: kInk),
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(Icons.local_hospital_outlined,
+                          color: Color(0xFF065F46), size: 18),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Emergency Trauma Ambulance: 108 / 112',
+                          style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: kInk),
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(Icons.shield_outlined,
+                          color: Color(0xFF3730A3), size: 18),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'District Red Cross Blood Center: Verified 24/7',
+                          style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: kInk),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 18),
+            PrimaryButton(
+              label: 'Close Directory',
+              onPressed: () => Navigator.pop(ctx),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _requesterStatBox({
+    required String label,
+    required String value,
+    required Color color,
+    required Color bgColor,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        children: [
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w900,
+              color: color,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: color.withValues(alpha: 0.8),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _requesterHubCard(
+      BuildContext context, RequestProvider reqProv, AppUser user) {
+    final activeCount = reqProv.requests
+        .where((r) => r.status == 'open' || r.status == 'matched')
+        .length;
+    final fulfilledCount = reqProv.requests
+        .where((r) => r.status == 'fulfilled')
+        .length;
+    final totalCount = reqProv.requests.length;
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFEDE7EA)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFDE8E8),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.local_hospital_rounded,
+                    color: Color(0xFFBA1A1A), size: 20),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Emergency Request Hub',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: kInk,
+                      ),
+                    ),
+                    Text(
+                      user.city.isNotEmpty
+                          ? 'Broadcasting across ${user.city} network'
+                          : 'Live triage & donor dispatch desk',
+                      style: const TextStyle(fontSize: 11.5, color: kMuted),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                decoration: BoxDecoration(
+                  color: activeCount > 0
+                      ? const Color(0xFFFEF3C7)
+                      : const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  activeCount > 0 ? '$activeCount Active' : 'Standby',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: activeCount > 0
+                        ? const Color(0xFFB45309)
+                        : const Color(0xFF475569),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _requesterStatBox(
+                  label: 'Active',
+                  value: '$activeCount',
+                  color: const Color(0xFFBA1A1A),
+                  bgColor: const Color(0xFFFDF2F2),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _requesterStatBox(
+                  label: 'Fulfilled',
+                  value: '$fulfilledCount',
+                  color: const Color(0xFF065F46),
+                  bgColor: const Color(0xFFD1FAE5),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _requesterStatBox(
+                  label: 'Total',
+                  value: '$totalCount',
+                  color: kInk,
+                  bgColor: const Color(0xFFF8F7FA),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () => context.push('/create-request'),
+              icon: const Icon(Icons.add_circle_outline, size: 19),
+              label: const Text(
+                'Request Blood Now',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.2,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFBA1A1A),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: const StadiumBorder(),
+                elevation: 0,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _donorRadarCard(DonorProvider donor, AppUser user) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFEDE7EA)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: donor.available
+                      ? const Color(0xFF10B981)
+                      : const Color(0xFFBA1A1A),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Available to Donate',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: kInk,
+                      ),
+                    ),
+                    Text(
+                      donor.available
+                          ? 'Live Dispatch Ready'
+                          : 'Alerts are paused',
+                      style: const TextStyle(fontSize: 12, color: kMuted),
+                    ),
+                  ],
+                ),
+              ),
+              Switch(
+                value: donor.available,
+                activeThumbColor: const Color(0xFFBA1A1A),
+                onChanged: (val) async {
+                  final err =
+                      await context.read<DonorProvider>().setAvailable(val);
+                  if (err != null) _toast(err);
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8F7FA),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.radar,
+                        color: Color(0xFFBA1A1A), size: 18),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        'Current dispatch radius',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: kInk,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEDE7EA),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Text(
+                        '10 KM',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: kInk,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Within 10 km \u2022 Real-time GPS enabled',
+                    style: TextStyle(fontSize: 11.5, color: kMuted),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          _donorMap(donor, user),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _locating ? null : _updateLocation,
+              icon: _locating
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.my_location, size: 18),
+              label: Text(
+                _locating
+                    ? 'Updating Radar...'
+                    : 'Update Live Location / Radar',
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.2,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFBA1A1A),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: const StadiumBorder(),
+                elevation: 0,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _donorMap(DonorProvider donor, AppUser user) {
     final double lat;
     final double lng;
@@ -405,8 +858,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   top: 10,
                   right: 10,
                   child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.92),
                       borderRadius: BorderRadius.circular(20),
@@ -425,17 +878,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           isLiveGps ? Icons.gps_fixed : Icons.location_city,
                           size: 13,
                           color: isLiveGps
-                              ? const Color(0xFF2E7D32)
+                              ? const Color(0xFF10B981)
                               : kPrimaryDark,
                         ),
-                        const SizedBox(width: 5),
+                        const SizedBox(width: 4),
                         Text(
                           isLiveGps ? 'GPS Active' : 'City Center',
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w800,
                             color: isLiveGps
-                                ? const Color(0xFF2E7D32)
+                                ? const Color(0xFF10B981)
                                 : kPrimaryDark,
                           ),
                         ),
@@ -453,7 +906,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Icon(
               isLiveGps ? Icons.check_circle : Icons.info_outline,
               size: 15,
-              color: isLiveGps ? const Color(0xFF2E7D32) : kMuted,
+              color: isLiveGps ? const Color(0xFF10B981) : kMuted,
             ),
             const SizedBox(width: 6),
             Expanded(
@@ -462,7 +915,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: isLiveGps ? FontWeight.w700 : FontWeight.w600,
-                  color: isLiveGps ? const Color(0xFF2E7D32) : kMuted,
+                  color: isLiveGps ? const Color(0xFF065F46) : kMuted,
                 ),
               ),
             ),
@@ -541,7 +994,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
                     Text(
-                      user.isDonor ? 'DONOR PROFILE' : 'USER PROFILE',
+                      user.isDonor ? 'DONOR PROFILE' : 'REQUESTER PROFILE',
                       style: const TextStyle(
                         fontSize: 9.5,
                         fontWeight: FontWeight.w800,
@@ -591,7 +1044,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 18),
 
             // =================================================================
-            // Donor Profile Header Card
+            // Profile Header Card (Common user card with role-specific badge)
             // =================================================================
             Container(
               padding: const EdgeInsets.all(18),
@@ -612,7 +1065,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Avatar with green verified checkmark badge
+                      // Avatar with verified checkmark badge
                       Stack(
                         children: [
                           CircleAvatar(
@@ -712,7 +1165,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   const SizedBox(height: 14),
 
-                  // Two Badges Row
+                  // Role & Availability Badges Row
                   Row(
                     children: [
                       // Badge 1: Real Role badge
@@ -721,8 +1174,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 10, vertical: 7),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFBA1A1A),
+                            color: const Color(0xFFFDE8E8),
                             borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: const Color(0xFFFCDADA)),
                           ),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
@@ -731,7 +1185,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 user.isDonor
                                     ? Icons.water_drop
                                     : Icons.local_hospital,
-                                color: Colors.white,
+                                color: const Color(0xFF8B1225),
                                 size: 13,
                               ),
                               const SizedBox(width: 5),
@@ -743,7 +1197,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   style: const TextStyle(
                                     fontSize: 11,
                                     fontWeight: FontWeight.w700,
-                                    color: Colors.white,
+                                    color: Color(0xFF8B1225),
                                   ),
                                   overflow: TextOverflow.ellipsis,
                                 ),
@@ -752,55 +1206,62 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      // Badge 2: Real Live Radar Availability badge
-                      Expanded(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 7),
-                          decoration: BoxDecoration(
-                            color: donor.available
-                                ? const Color(0xFFD1FAE5)
-                                : const Color(0xFFFDE8E8),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                donor.available
-                                    ? Icons.radar
-                                    : Icons.pause_circle_outline,
+                      if (user.isDonor) ...[
+                        const SizedBox(width: 8),
+                        // Badge 2: Live Radar Availability badge (DONOR ONLY)
+                        Expanded(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 7),
+                            decoration: BoxDecoration(
+                              color: donor.available
+                                  ? const Color(0xFFD1FAE5)
+                                  : const Color(0xFFF3F4F6),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
                                 color: donor.available
-                                    ? const Color(0xFF065F46)
-                                    : const Color(0xFF8B1225),
-                                size: 13,
+                                    ? const Color(0xFFA7F3D0)
+                                    : const Color(0xFFE5E7EB),
                               ),
-                              const SizedBox(width: 5),
-                              Flexible(
-                                child: Text(
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
                                   donor.available
-                                      ? 'Live Radar Active'
-                                      : 'Alerts Paused',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w700,
-                                    color: donor.available
-                                        ? const Color(0xFF065F46)
-                                        : const Color(0xFF8B1225),
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
+                                      ? Icons.radar
+                                      : Icons.pause_circle_outline,
+                                  color: donor.available
+                                      ? const Color(0xFF065F46)
+                                      : const Color(0xFF4B5563),
+                                  size: 13,
                                 ),
-                              ),
-                            ],
+                                const SizedBox(width: 5),
+                                Flexible(
+                                  child: Text(
+                                    donor.available
+                                        ? 'Live Radar Active'
+                                        : 'Alerts Paused',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      color: donor.available
+                                          ? const Color(0xFF065F46)
+                                          : const Color(0xFF4B5563),
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                   const SizedBox(height: 12),
 
-                  // Blood Group Container
+                  // Blood Group Container (if available)
                   if (group != null && group.isNotEmpty) ...[
                     Container(
                       padding: const EdgeInsets.symmetric(
@@ -827,9 +1288,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text(
-                                  'BLOOD GROUP TYPE',
-                                  style: TextStyle(
+                                Text(
+                                  user.isDonor
+                                      ? 'BLOOD GROUP TYPE'
+                                      : 'PATIENT / REQUESTER BLOOD GROUP',
+                                  style: const TextStyle(
                                     fontSize: 10,
                                     fontWeight: FontWeight.w800,
                                     letterSpacing: 0.8,
@@ -838,9 +1301,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
-                                  group == 'O-'
-                                      ? 'O- (Universal Donor)'
-                                      : '$group (${kDonatesTo[group]?.contains('AB+') ?? false ? 'Compatible Match' : 'Universal Match'})',
+                                  user.isDonor
+                                      ? (group == 'O-'
+                                          ? 'O- (Universal Donor)'
+                                          : '$group (${kDonatesTo[group]?.contains('AB+') ?? false ? 'Compatible Match' : 'Universal Match'})')
+                                      : '$group (Recipient Profile)',
                                   style: const TextStyle(
                                     fontSize: 14.5,
                                     fontWeight: FontWeight.w800,
@@ -858,9 +1323,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Text(
-                              (group == 'O-' || group == 'O+')
-                                  ? 'UNIVERSAL'
-                                  : (donor.available ? 'RADAR ACTIVE' : 'STANDBY'),
+                              user.isDonor
+                                  ? ((group == 'O-' || group == 'O+')
+                                      ? 'UNIVERSAL'
+                                      : (donor.available ? 'RADAR ACTIVE' : 'STANDBY'))
+                                  : 'REGISTERED',
                               style: const TextStyle(
                                 fontSize: 10.5,
                                 fontWeight: FontWeight.w800,
@@ -879,220 +1346,96 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 16),
 
             // =================================================================
-            // Available to Donate & Live Radar Dispatch Card
+            // Role-Specific Center Card:
+            // Donor sees Live Radar Dispatch Card;
+            // Requester sees Emergency Request Hub Card.
             // =================================================================
-            Container(
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(22),
-                border: Border.all(color: const Color(0xFFEDE7EA)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.04),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 10,
-                        height: 10,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: donor.available
-                              ? const Color(0xFF10B981)
-                              : const Color(0xFFBA1A1A),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Available to Donate',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w800,
-                                color: kInk,
-                              ),
-                            ),
-                            Text(
-                              donor.available
-                                  ? 'Live Dispatch Ready'
-                                  : 'Alerts are paused',
-                              style: const TextStyle(
-                                  fontSize: 12, color: kMuted),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Switch(
-                        value: donor.available,
-                        activeThumbColor: const Color(0xFFBA1A1A),
-                        onChanged: (val) async {
-                          final err = await context
-                              .read<DonorProvider>()
-                              .setAvailable(val);
-                          if (err != null) _toast(err);
-                        },
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-
-                  // Current dispatch radius box
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF8F7FA),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Column(
-                      children: [
-                        Row(
-                          children: [
-                            const Icon(Icons.radar,
-                                color: Color(0xFFBA1A1A), size: 18),
-                            const SizedBox(width: 8),
-                            const Expanded(
-                              child: Text(
-                                'Current dispatch radius',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700,
-                                  color: kInk,
-                                ),
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFEDE7EA),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: const Text(
-                                '10 KM',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w800,
-                                  color: kInk,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        const Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            'Within 10 km \u2022 Real-time GPS enabled',
-                            style: TextStyle(fontSize: 11.5, color: kMuted),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  _donorMap(donor, user),
-                  const SizedBox(height: 14),
-
-                  // Big red pill button
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: _locating ? null : _updateLocation,
-                      icon: _locating
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : const Icon(Icons.my_location, size: 18),
-                      label: Text(
-                        _locating
-                            ? 'Updating Radar...'
-                            : 'Update Live Location / Radar',
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.2,
-                        ),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFBA1A1A),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: const StadiumBorder(),
-                        elevation: 0,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            if (user.isDonor) ...[
+              _donorRadarCard(donor, user),
+            ] else ...[
+              _requesterHubCard(context, reqProv, user),
+            ],
             const SizedBox(height: 16),
 
             // =================================================================
-            // 5 Menu & Settings Cards
+            // Role-Specific & Common Menu Cards
             // =================================================================
-            // 1. Donation History & Impact
-            _ProfileMenuCard(
-              icon: Icons.water_drop_outlined,
-              iconBgColor: const Color(0xFFFDE8E8),
-              iconColor: const Color(0xFFBA1A1A),
-              title: 'Donation History & Impact',
-              badgeText: tierBadge,
-              badgeColor: tierBadgeColor,
-              badgeTextColor: tierBadgeTextColor,
-              subtitle: donationSubtitle,
-              onTap: () => context.push('/history'),
-            ),
-            const SizedBox(height: 12),
+            if (user.isDonor) ...[
+              // 1. Donation History & Impact (DONOR ONLY)
+              _ProfileMenuCard(
+                icon: Icons.water_drop_outlined,
+                iconBgColor: const Color(0xFFFDE8E8),
+                iconColor: const Color(0xFFBA1A1A),
+                title: 'Donation History & Impact',
+                badgeText: tierBadge,
+                badgeColor: tierBadgeColor,
+                badgeTextColor: tierBadgeTextColor,
+                subtitle: donationSubtitle,
+                onTap: () => context.push('/history'),
+              ),
+              const SizedBox(height: 12),
 
-            // 2. My Emergency Blood Requests
-            _ProfileMenuCard(
-              icon: Icons.medical_services_outlined,
-              iconBgColor: const Color(0xFFFDE8E8),
-              iconColor: const Color(0xFFBA1A1A),
-              title: 'My Emergency Blood Requests',
-              subtitle:
-                  '$activeReqCount Active Request \u2022 $pastReqCount Past Requests',
-              onTap: () => context.go('/requests'),
-            ),
-            const SizedBox(height: 12),
+              // 2. Medical Eligibility & Screening Form (DONOR ONLY)
+              _ProfileMenuCard(
+                icon: Icons.assignment_turned_in_outlined,
+                iconBgColor: const Color(0xFFF1EEF3),
+                iconColor: const Color(0xFF8B1225),
+                title: 'Medical Eligibility & Screening Form',
+                badgeText: donor.hasHealthDetails ? 'Verified' : 'Pending',
+                badgeColor: donor.hasHealthDetails
+                    ? const Color(0xFFD1FAE5)
+                    : const Color(0xFFFEE2E2),
+                badgeTextColor: donor.hasHealthDetails
+                    ? const Color(0xFF065F46)
+                    : const Color(0xFF991B1B),
+                subtitle: donor.hasHealthDetails
+                    ? 'Health details recorded (${donor.age ?? "-"} yrs, ${donor.weight != null ? donor.weight!.toStringAsFixed(0) : "-"} kg, Hb ${donor.hemoglobin ?? "-"} g/dL)'
+                    : 'Screening not completed yet \u2022 Tap to fill form',
+                onTap: () => context.push('/donor-details'),
+              ),
+              const SizedBox(height: 12),
+            ] else ...[
+              // 1. My Emergency Blood Requests (REQUESTER ONLY)
+              _ProfileMenuCard(
+                icon: Icons.medical_services_outlined,
+                iconBgColor: const Color(0xFFFDE8E8),
+                iconColor: const Color(0xFFBA1A1A),
+                title: 'My Emergency Blood Requests',
+                subtitle:
+                    '$activeReqCount Active Request \u2022 $pastReqCount Past Requests',
+                onTap: () => context.go('/requests'),
+              ),
+              const SizedBox(height: 12),
 
-            // 3. Medical Eligibility & Screening Form
-            _ProfileMenuCard(
-              icon: Icons.assignment_turned_in_outlined,
-              iconBgColor: const Color(0xFFF1EEF3),
-              iconColor: const Color(0xFF8B1225),
-              title: 'Medical Eligibility & Screening Form',
-              badgeText: donor.hasHealthDetails ? 'Verified' : 'Pending',
-              badgeColor: donor.hasHealthDetails
-                  ? const Color(0xFFD1FAE5)
-                  : const Color(0xFFFEE2E2),
-              badgeTextColor: donor.hasHealthDetails
-                  ? const Color(0xFF065F46)
-                  : const Color(0xFF991B1B),
-              subtitle: donor.hasHealthDetails
-                  ? 'Health details recorded (${donor.age ?? "-"} yrs, ${donor.weight != null ? donor.weight!.toStringAsFixed(0) : "-"} kg, Hb ${donor.hemoglobin ?? "-"} g/dL)'
-                  : 'Screening not completed yet \u2022 Tap to fill form',
-              onTap: () => context.push('/donor-details'),
-            ),
-            const SizedBox(height: 12),
+              // 2. Hospital & Blood Bank Network (REQUESTER ONLY)
+              _ProfileMenuCard(
+                icon: Icons.apartment_rounded,
+                iconBgColor: const Color(0xFFF1EEF3),
+                iconColor: const Color(0xFF8B1225),
+                title: 'Hospital & Blood Bank Directory',
+                subtitle: user.city.isNotEmpty
+                    ? 'Accredited trauma centers & blood banks in ${user.city}'
+                    : 'Accredited trauma centers & blood bank network',
+                onTap: () => _showHospitalNetwork(context, user.city),
+              ),
+              const SizedBox(height: 12),
 
-            // 4. Notification & Siren Settings
+              // 3. Register as Volunteer Blood Donor (REQUESTER ONLY)
+              _ProfileMenuCard(
+                icon: Icons.volunteer_activism_outlined,
+                iconBgColor: const Color(0xFFFDF2F2),
+                iconColor: const Color(0xFFBA1A1A),
+                title: 'Register as Blood Donor',
+                badgeText: 'Optional',
+                badgeColor: const Color(0xFFE0E7FF),
+                badgeTextColor: const Color(0xFF3730A3),
+                subtitle: 'Join live radar to donate blood and save lives',
+                onTap: () => context.push('/donor-details'),
+              ),
+              const SizedBox(height: 12),
+            ],
+
+            // COMMON: Notification & Siren Settings
             _ProfileMenuCard(
               icon: Icons.notifications_active_outlined,
               iconBgColor: const Color(0xFFF1EEF3),
@@ -1114,7 +1457,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             const SizedBox(height: 12),
 
-            // 5. Privacy, Security & Medical Terms
+            // COMMON: Privacy, Security & Medical Terms
             _ProfileMenuCard(
               icon: Icons.shield_outlined,
               iconBgColor: const Color(0xFFF1EEF3),
@@ -1126,7 +1469,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 22),
 
             // =================================================================
-            // Log Out Button & Warning
+            // COMMON: Log Out Button & Role-Specific Warning
             // =================================================================
             OutlinedButton.icon(
               onPressed: _logout,
@@ -1144,17 +1487,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
             const SizedBox(height: 10),
-            const Row(
+            Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.warning_amber_rounded,
+                const Icon(Icons.warning_amber_rounded,
                     size: 16, color: Color(0xFFBA1A1A)),
-                SizedBox(width: 6),
+                const SizedBox(width: 6),
                 Flexible(
                   child: Text(
-                    'Logging out pauses live emergency dispatch alerts in your radius.',
+                    user.isDonor
+                        ? 'Logging out pauses live emergency dispatch alerts in your radius.'
+                        : 'Logging out will sign you out of your emergency request desk.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 11.5, color: kMuted),
+                    style: const TextStyle(fontSize: 11.5, color: kMuted),
                   ),
                 ),
               ],

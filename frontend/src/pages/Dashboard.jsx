@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
 import "./Dashboard.css";
 import BloodRequests from "./BloodRequests";
+import Donors from "./Donors";
+import Analytics from "./Analytics";
+import Notifications from "./Notifications";
+import Settings from "./Settings";
 
 const API_URL = "https://lifelink-backend-8onj.onrender.com";
 
@@ -10,12 +14,7 @@ function Dashboard({ onLogout }) {
   const [donorCount, setDonorCount] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-
-  const [theme, setTheme] = useState(
-    localStorage.getItem("lifelink-theme") || "light"
-  );
-
-  const [showNotifications, setShowNotifications] = useState(false);
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
   const [navbarSearch, setNavbarSearch] = useState("");
 
   const [user] = useState(() => {
@@ -25,12 +24,6 @@ function Dashboard({ onLogout }) {
       return {};
     }
   });
-
-  function toggleTheme() {
-    const newTheme = theme === "light" ? "dark" : "light";
-    setTheme(newTheme);
-    localStorage.setItem("lifelink-theme", newTheme);
-  }
 
   async function fetchDashboardData() {
     setLoading(true);
@@ -54,8 +47,6 @@ function Dashboard({ onLogout }) {
         fetch(`${API_URL}/api/donors/available/count`, { headers }),
       ]);
 
-      let requestError = "";
-
       if (requestResult.status === "fulfilled") {
         const response = requestResult.value;
 
@@ -74,37 +65,25 @@ function Dashboard({ onLogout }) {
 
           setRequests(list);
         } else {
-          requestError = `Requests API returned ${response.status}`;
+          setError(`Requests API returned ${response.status}`);
         }
       } else {
-        requestError = "Could not connect to the requests API.";
+        setError("Could not connect to the requests API.");
       }
 
-      if (donorResult.status === "fulfilled") {
-        const response = donorResult.value;
+      if (donorResult.status === "fulfilled" && donorResult.value.ok) {
+        const data = await donorResult.value.json();
 
-        if (response.ok) {
-          const data = await response.json();
+        const count =
+          data.availableDonorCount ??
+          data.count ??
+          data.availableDonors ??
+          data.total ??
+          data.data?.count;
 
-          const count =
-            data.availableDonorCount ??
-            data.count ??
-            data.availableDonors ??
-            data.total ??
-            data.data?.count;
-
-          setDonorCount(
-            typeof count === "number" ? count : null
-          );
-        } else {
-          setDonorCount(null);
-        }
+        setDonorCount(typeof count === "number" ? count : null);
       } else {
         setDonorCount(null);
-      }
-
-      if (requestError) {
-        setError(requestError);
       }
     } catch (err) {
       setError(err.message || "Unable to load dashboard data.");
@@ -116,15 +95,56 @@ function Dashboard({ onLogout }) {
   useEffect(() => {
     fetchDashboardData();
 
-    const intervalId = setInterval(() => {
-      fetchDashboardData();
-    }, 15000);
+    const intervalId = setInterval(fetchDashboardData, 15000);
 
     return () => clearInterval(intervalId);
   }, []);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    async function fetchUnreadNotificationCount() {
+      const token = localStorage.getItem("token");
+
+      if (!token) return;
+
+      try {
+        const response = await fetch(
+          `${API_URL}/api/notifications/unread-count`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+        if (!response.ok) return;
+
+        const data = await response.json();
+
+        if (isMounted) {
+          setUnreadNotificationCount(Number(data.unreadCount || 0));
+        }
+      } catch (err) {
+        console.error("Unable to fetch notifications:", err);
+      }
+    }
+
+    fetchUnreadNotificationCount();
+
+    const intervalId = setInterval(fetchUnreadNotificationCount, 30000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(intervalId);
+    };
+  }, []);
+
   function getStatus(request) {
-    return String(request.status || "unknown").toLowerCase();
+    return String(request.status || "unknown")
+      .trim()
+      .toLowerCase()
+      .replace(/[\s-]+/g, "_");
   }
 
   const openRequests = requests.filter((request) =>
@@ -142,15 +162,51 @@ function Dashboard({ onLogout }) {
   const recentRequests = [...requests]
     .sort(
       (a, b) =>
-        new Date(b.createdAt || 0) -
-        new Date(a.createdAt || 0)
+        new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
     )
     .slice(0, 5);
 
-  function formatRequestTime(dateValue) {
-    if (!dateValue) return "Time unavailable";
+  const userName =
+    user.name ||
+    user.fullName ||
+    user.username ||
+    user.email ||
+    "User";
 
-    const date = new Date(dateValue);
+  const userRole = user.role || "LifeLink User";
+  const avatarLetter = String(userName).charAt(0).toUpperCase();
+
+  const searchQuery = navbarSearch.trim().toLowerCase();
+
+  const filteredRequests = requests.filter((request) => {
+    if (!searchQuery) return true;
+
+    const values = [
+      request._id,
+      request.id,
+      request.requestId,
+      request.patientName,
+      request.hospitalName,
+      request.hospital,
+      request.city,
+      request.bloodGroup,
+      request.bloodType,
+      request.status,
+      request.urgency,
+      request.priority,
+      request.units,
+      request.unitsNeeded,
+    ];
+
+    return values.some((value) =>
+      String(value ?? "").toLowerCase().includes(searchQuery)
+    );
+  });
+
+  function formatRequestTime(value) {
+    if (!value) return "Time unavailable";
+
+    const date = new Date(value);
 
     if (Number.isNaN(date.getTime())) {
       return "Time unavailable";
@@ -164,79 +220,94 @@ function Dashboard({ onLogout }) {
     });
   }
 
-  const userName =
-    user.name ||
-    user.fullName ||
-    user.username ||
-    user.email ||
-    "User";
-
-  const userRole = user.role || "LifeLink User";
-
-  const avatarLetter = String(userName).charAt(0).toUpperCase();
-
-  const filteredRequests = requests.filter((request) => {
-    const search = navbarSearch.toLowerCase().trim();
-
-    if (!search) return true;
-
-    return [
-      request._id,
-      request.id,
-      request.patientName,
-      request.hospitalName,
-      request.hospital,
-      request.bloodGroup,
-      request.bloodType,
-      request.status,
-    ].some((value) =>
-      String(value || "").toLowerCase().includes(search)
-    );
-  });
-
   function display(value) {
     return loading ? "..." : value;
   }
 
+  function handleLogout() {
+    if (onLogout) {
+      onLogout();
+    }
+  }
+
   return (
-    <div
-      className={`dashboard ${
-        theme === "dark" ? "dark-theme" : ""
-      }`}
-    >
+    <div className="dashboard">
       <aside className="sidebar">
-        <h2 className="brand">♥ LifeLink</h2>
-        <p className="brand-subtitle">CLINICAL DISPATCH</p>
+        <div className="dashboard-brand">
+          <div className="dashboard-brand-icon">
+            <svg
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              role="img"
+              aria-label="LifeLink blood drop logo"
+            >
+              <path d="M12 2.5C10.2 5.7 5.5 10.1 5.5 14.5a6.5 6.5 0 0 0 13 0C18.5 10.1 13.8 5.7 12 2.5Z" />
+              <path
+                d="M8.5 14.5a3.5 3.5 0 0 0 3.5 3.5"
+                fill="none"
+                stroke="#FFFFFF"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
+            </svg>
+          </div>
+
+          <div className="dashboard-brand-text">
+            <h2>LifeLink</h2>
+            <p>CLINICAL DISPATCH</p>
+          </div>
+        </div>
 
         <p className="sidebar-label">COMMAND CENTER</p>
 
         <div
-          className={`nav-item ${
-            activePage === "dashboard" ? "active" : ""
-          }`}
+          className={`nav-item ${activePage === "dashboard" ? "active" : ""}`}
           onClick={() => setActivePage("dashboard")}
         >
           ▦ Overview
         </div>
 
         <div
-          className={`nav-item ${
-            activePage === "requests" ? "active" : ""
-          }`}
+          className={`nav-item ${activePage === "requests" ? "active" : ""}`}
           onClick={() => setActivePage("requests")}
         >
           ♡ Blood Requests
         </div>
 
-        <div className="nav-item" title="Donor page not connected yet">
+        <div
+          className={`nav-item ${activePage === "donors" ? "active" : ""}`}
+          onClick={() => setActivePage("donors")}
+        >
           ♧ Donors
         </div>
 
-        <div className="nav-item" title="Analytics page not connected yet">
+        <div
+          className={`nav-item ${activePage === "analytics" ? "active" : ""}`}
+          onClick={() => setActivePage("analytics")}
+        >
           ▥ Analytics
         </div>
 
-        <div className="nav-item" title="Settings page not connected yet">
+        <div
+          className={`nav-item ${
+            activePage === "notifications" ? "active" : ""
+          }`}
+          onClick={() => setActivePage("notifications")}
+        >
+          🔔 Notifications
+          {unreadNotificationCount > 0 && (
+            <span className="notification-badge">
+              {unreadNotificationCount > 99
+                ? "99+"
+                : unreadNotificationCount}
+            </span>
+          )}
+        </div>
+
+        <div
+          className={`nav-item ${activePage === "settings" ? "active" : ""}`}
+          onClick={() => setActivePage("settings")}
+        >
           ⚙ Settings
         </div>
 
@@ -251,55 +322,41 @@ function Dashboard({ onLogout }) {
           <div className="navbar-search">
             <span>⌕</span>
             <input
-              type="text"
+              type="search"
               placeholder="Search requests, hospitals, blood groups..."
+              aria-label="Search requests"
               value={navbarSearch}
-              onChange={(event) =>
-                setNavbarSearch(event.target.value)
-              }
+              onChange={(event) => setNavbarSearch(event.target.value)}
             />
+
+            {navbarSearch && (
+              <button
+                type="button"
+                onClick={() => setNavbarSearch("")}
+                aria-label="Clear search"
+              >
+                ×
+              </button>
+            )}
           </div>
 
           <div className="navbar-actions">
-            <button
-              className="theme-button"
-              onClick={toggleTheme}
-              title="Toggle dark mode"
-            >
-              {theme === "light" ? "🌙" : "☀️"}
-            </button>
-
             <div className="notification-wrapper">
               <button
                 className="notification-button"
-                onClick={() =>
-                  setShowNotifications(!showNotifications)
-                }
-                aria-label="Toggle notifications"
+                onClick={() => setActivePage("notifications")}
+                aria-label="Open notifications"
+                title="Notifications"
               >
-                ♧
+                🔔
+                {unreadNotificationCount > 0 && (
+                  <span className="notification-badge">
+                    {unreadNotificationCount > 99
+                      ? "99+"
+                      : unreadNotificationCount}
+                  </span>
+                )}
               </button>
-
-              {showNotifications && (
-                <div className="notification-dropdown">
-                  <h3>Notifications</h3>
-                  <p>
-                    {loading
-                      ? "Loading request information..."
-                      : error
-                      ? "Dashboard data could not be loaded."
-                      : `${openRequests.length} open or pending requests currently found.`}
-                  </p>
-                  <button
-                    onClick={() => {
-                      setActivePage("requests");
-                      setShowNotifications(false);
-                    }}
-                  >
-                    View Blood Requests
-                  </button>
-                </div>
-              )}
             </div>
 
             <div className="profile-info">
@@ -310,14 +367,24 @@ function Dashboard({ onLogout }) {
               </div>
             </div>
 
-            <button className="logout-button" onClick={onLogout}>
+            <button className="logout-button" onClick={handleLogout}>
               Logout
             </button>
           </div>
         </header>
 
-        {activePage === "requests" ? (
+        {activePage === "settings" ? (
+          <Settings />
+        ) : activePage === "notifications" ? (
+          <Notifications
+            onUnreadCountChange={setUnreadNotificationCount}
+          />
+        ) : activePage === "requests" ? (
           <BloodRequests />
+        ) : activePage === "donors" ? (
+          <Donors />
+        ) : activePage === "analytics" ? (
+          <Analytics />
         ) : (
           <section className="dashboard-page">
             <div className="welcome-section">
@@ -342,9 +409,7 @@ function Dashboard({ onLogout }) {
               <div className="error-message">
                 <strong>Unable to load all dashboard data</strong>
                 <p>{error}</p>
-                <button onClick={fetchDashboardData}>
-                  Try Again
-                </button>
+                <button onClick={fetchDashboardData}>Try Again</button>
               </div>
             )}
 
@@ -390,7 +455,7 @@ function Dashboard({ onLogout }) {
                 </h2>
                 <p>
                   {donorCount === null
-                    ? "Donor count unavailable for this account"
+                    ? "Donor count unavailable"
                     : "Available donor count from API"}
                 </p>
               </div>
@@ -401,8 +466,8 @@ function Dashboard({ onLogout }) {
                 <div>
                   <h2>Blood Request Queue</h2>
                   <p>
-                    {navbarSearch.trim()
-                      ? `Search results for "${navbarSearch}"`
+                    {searchQuery
+                      ? `Showing ${filteredRequests.length} matching requests`
                       : "Latest requests received from the API"}
                   </p>
                 </div>
@@ -428,8 +493,8 @@ function Dashboard({ onLogout }) {
                   <span className="empty-icon">♡</span>
                   <h3>No blood requests found</h3>
                   <p>
-                    {navbarSearch.trim()
-                      ? "Try another search term."
+                    {searchQuery
+                      ? "Try another search term or clear the search."
                       : "The API returned no requests to display."}
                   </p>
                 </div>
@@ -459,20 +524,19 @@ function Dashboard({ onLogout }) {
                                 "Request"}
                             </strong>
                             <span className="table-subtitle">
-                              {request._id || request.id || "—"}
+                              {request.requestId ||
+                                request._id ||
+                                request.id ||
+                                "—"}
                             </span>
                           </td>
 
                           <td>
-                            {request.bloodGroup ||
-                              request.bloodType ||
-                              "—"}
+                            {request.bloodGroup || request.bloodType || "—"}
                           </td>
 
                           <td>
-                            {request.units ??
-                              request.unitsNeeded ??
-                              "—"}
+                            {request.units ?? request.unitsNeeded ?? "—"}
                           </td>
 
                           <td>
@@ -480,7 +544,9 @@ function Dashboard({ onLogout }) {
                           </td>
 
                           <td>
-                            <span className={`status-pill ${getStatus(request).replace(/\s+/g, "-")}`}>
+                            <span
+                              className={`status-pill ${getStatus(request)}`}
+                            >
                               {request.status || "Unknown"}
                             </span>
                           </td>
@@ -520,14 +586,14 @@ function Dashboard({ onLogout }) {
                 <div className="dispatch-feed-list">
                   {recentRequests.map((request, index) => {
                     const urgency = String(
-                      request.urgency || "normal"
+                      request.urgency || request.priority || "normal"
                     ).toLowerCase();
 
                     const status = getStatus(request);
 
                     return (
                       <div
-                        className="dispatch-feed-item"
+                        className={`dispatch-feed-item ${urgency}`}
                         key={request._id || request.id || index}
                       >
                         <div className={`dispatch-feed-icon ${urgency}`}>
@@ -548,18 +614,19 @@ function Dashboard({ onLogout }) {
                           </strong>
 
                           <p>
-                            {request.bloodGroup || "Blood group unavailable"}
+                            {request.bloodGroup ||
+                              request.bloodType ||
+                              "Blood group unavailable"}
                             {" · "}
                             {request.city || "City unavailable"}
                             {" · "}
-                            {request.units ?? "—"} units
+                            {request.units ?? request.unitsNeeded ?? "—"} units
                           </p>
 
                           <div className="dispatch-feed-meta">
                             <span className={`status-pill ${status}`}>
-                              {status}
+                              {request.status || status}
                             </span>
-
                             <span>
                               {formatRequestTime(request.createdAt)}
                             </span>

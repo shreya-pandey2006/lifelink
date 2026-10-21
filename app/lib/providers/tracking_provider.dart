@@ -126,6 +126,15 @@ class TrackingProvider extends ChangeNotifier {
     }
   }
 
+  void seed(BloodRequest initial) {
+    if (request == null || request!.id != initial.id) {
+      request = initial;
+      responders = [];
+      error = null;
+      notifyListeners();
+    }
+  }
+
   void clear() {
     request = null;
     responders = [];

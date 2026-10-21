@@ -11,6 +11,7 @@ import 'providers/request_provider.dart';
 import 'providers/tracking_provider.dart';
 import 'router/app_router.dart';
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
   final auth = AuthProvider()..init();
   final router = buildRouter(auth);
   runApp(

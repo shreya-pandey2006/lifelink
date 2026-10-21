@@ -4,12 +4,9 @@ import "./BloodRequests.css";
 const API_URL = "https://lifelink-backend-8onj.onrender.com";
 
 function BloodRequests() {
-  
   const [requests, setRequests] = useState([]);
-
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [urgencyFilter, setUrgencyFilter] = useState("all");
@@ -62,55 +59,83 @@ function BloodRequests() {
     fetchRequests();
   }, []);
 
+  function normalize(value) {
+    return String(value ?? "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+  }
+
   function getStatus(request) {
-    return String(request.status || "unknown").toLowerCase();
+    return normalize(request.status || "unknown");
+  }
+
+  function getUrgency(request) {
+    return normalize(request.urgency || request.priority || "unknown");
+  }
+
+  function getBloodGroup(request) {
+    return String(request.bloodGroup || request.bloodType || "").trim();
   }
 
   const openCount = requests.filter((request) =>
     ["open", "pending"].includes(getStatus(request))
   ).length;
 
-  const urgentCount = requests.filter(
-    (request) =>
-      String(request.urgency || "").toLowerCase() === "urgent"
+  const urgentCount = requests.filter((request) =>
+    ["urgent", "emergency", "critical"].includes(getUrgency(request))
   ).length;
 
   const fulfilledCount = requests.filter((request) =>
     ["fulfilled", "completed"].includes(getStatus(request))
   ).length;
 
+  const bloodGroups = [
+    ...new Set(
+      requests.map(getBloodGroup).filter(Boolean)
+    ),
+  ].sort((a, b) => a.localeCompare(b));
+
   const filteredRequests = requests.filter((request) => {
-    const bloodGroup = String(
-      request.bloodGroup || request.bloodType || ""
-    ).toLowerCase();
+    const query = search.trim().toLowerCase();
 
-    const status = getStatus(request);
-
-    const urgency = String(
-      request.urgency || "unknown"
-    ).toLowerCase();
-
-    const requestId = String(
-      request.requestId || request._id || request.id || ""
-    ).toLowerCase();
-
-    const city = String(request.city || "").toLowerCase();
-
-    const searchText = search.toLowerCase();
+    const searchableValues = [
+      request.requestId,
+      request._id,
+      request.id,
+      request.city,
+      request.bloodGroup,
+      request.bloodType,
+      request.hospitalName,
+      request.hospital,
+      request.patientName,
+      request.status,
+      request.urgency,
+      request.priority,
+    ];
 
     const matchesSearch =
-      requestId.includes(searchText) ||
-      city.includes(searchText) ||
-      bloodGroup.includes(searchText);
+      !query ||
+      searchableValues.some((value) =>
+        String(value ?? "").toLowerCase().includes(query)
+      );
+
+    const status = getStatus(request);
+    const urgency = getUrgency(request);
+    const bloodGroup = normalize(getBloodGroup(request));
 
     const matchesStatus =
-      statusFilter === "all" || status === statusFilter;
+      statusFilter === "all" ||
+      (statusFilter === "fulfilled"
+        ? ["fulfilled", "completed"].includes(status)
+        : status === statusFilter);
 
     const matchesUrgency =
-      urgencyFilter === "all" || urgency === urgencyFilter;
+      urgencyFilter === "all" ||
+      (urgencyFilter === "urgent"
+        ? ["urgent", "emergency", "critical"].includes(urgency)
+        : urgency === urgencyFilter);
 
     const matchesBlood =
-      bloodFilter === "all" || bloodGroup === bloodFilter;
+      bloodFilter === "all" ||
+      bloodGroup === normalize(bloodFilter);
 
     return (
       matchesSearch &&
@@ -120,15 +145,12 @@ function BloodRequests() {
     );
   });
 
-  const bloodGroups = [
-    ...new Set(
-      requests
-        .map((request) =>
-          String(request.bloodGroup || request.bloodType || "")
-        )
-        .filter(Boolean)
-    ),
-  ];
+  function resetFilters() {
+    setSearch("");
+    setStatusFilter("all");
+    setUrgencyFilter("all");
+    setBloodFilter("all");
+  }
 
   return (
     <div className="blood-requests-page">
@@ -172,13 +194,15 @@ function BloodRequests() {
 
       <div className="blood-filters">
         <input
-          type="text"
+          type="search"
+          aria-label="Search blood requests"
           placeholder="Search request ID, city or blood group..."
           value={search}
           onChange={(event) => setSearch(event.target.value)}
         />
 
         <select
+          aria-label="Filter by status"
           value={statusFilter}
           onChange={(event) => setStatusFilter(event.target.value)}
         >
@@ -188,15 +212,17 @@ function BloodRequests() {
           <option value="matched">Matched</option>
           <option value="in_transit">In Transit</option>
           <option value="fulfilled">Fulfilled</option>
-          <option value="completed">Completed</option>
           <option value="cancelled">Cancelled</option>
         </select>
 
         <select
+          aria-label="Filter by urgency"
           value={urgencyFilter}
           onChange={(event) => setUrgencyFilter(event.target.value)}
         >
           <option value="all">All Urgencies</option>
+          <option value="emergency">Emergency</option>
+          <option value="critical">Critical</option>
           <option value="urgent">Urgent</option>
           <option value="high">High</option>
           <option value="normal">Normal</option>
@@ -204,13 +230,13 @@ function BloodRequests() {
         </select>
 
         <select
+          aria-label="Filter by blood group"
           value={bloodFilter}
           onChange={(event) => setBloodFilter(event.target.value)}
         >
           <option value="all">All Blood Groups</option>
-
           {bloodGroups.map((group) => (
-            <option key={group} value={group.toLowerCase()}>
+            <option key={group} value={group}>
               {group}
             </option>
           ))}
@@ -221,11 +247,25 @@ function BloodRequests() {
         {loading ? (
           <p className="blood-message">Loading requests from API...</p>
         ) : error ? (
-          <p className="blood-error">{error}</p>
+          <div className="blood-message">
+            <p className="blood-error">{error}</p>
+            <button
+              className="blood-refresh-button"
+              onClick={fetchRequests}
+            >
+              Try Again
+            </button>
+          </div>
         ) : filteredRequests.length === 0 ? (
-          <p className="blood-message">
-            No requests match your search or filters.
-          </p>
+          <div className="blood-message">
+            <p>No requests match your search or filters.</p>
+            <button
+              className="blood-refresh-button"
+              onClick={resetFilters}
+            >
+              Clear Filters
+            </button>
+          </div>
         ) : (
           <>
             <p className="blood-results-count">
@@ -255,11 +295,7 @@ function BloodRequests() {
                           "—"}
                       </td>
 
-                      <td>
-                        {request.bloodGroup ||
-                          request.bloodType ||
-                          "—"}
-                      </td>
+                      <td>{getBloodGroup(request) || "—"}</td>
 
                       <td>
                         {request.units ??
@@ -271,7 +307,9 @@ function BloodRequests() {
 
                       <td>
                         <span className="blood-urgency">
-                          {request.urgency || "Unknown"}
+                          {request.urgency ||
+                            request.priority ||
+                            "Unknown"}
                         </span>
                       </td>
 
@@ -293,4 +331,3 @@ function BloodRequests() {
 }
 
 export default BloodRequests;
-

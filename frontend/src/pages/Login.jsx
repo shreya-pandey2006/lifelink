@@ -177,7 +177,7 @@ function Login({ onLogin, loading, error, onGoRegister }) {
             {error && <p className="auth-error">{error}</p>}
 
             <button className="auth-submit" type="submit" disabled={loading}>
-              {loading ? "Signing In..." : "♙  Sign In to LifeLink"}
+              {loading ? "Signing In..." : "Sign In to LifeLink"}
             </button>
           </form>
 

@@ -176,3 +176,5 @@ const kCityCoordinates = <String, (double, double)>{
   final key = city.trim().toLowerCase();
   return kCityCoordinates[key];
 }
+
+const kGoogleMapsApiKey = 'AIzaSyBxpvUpDr9k-t-5QVT_XN1BfC4EL3hEce0';
