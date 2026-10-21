@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 const BloodRequest = require("../models/BloodRequest");
 const Donor = require("../models/Donor");
+const DonorResponse = require("../models/DonorResponse");
 const Notification = require("../models/Notification");
 const User = require("../models/User");
 
@@ -512,12 +513,33 @@ const getBloodRequests = async (req, res) => {
       BloodRequest.countDocuments(filter)
     ]);
 
+    // Aggregate accepted responses count for these requests
+    const requestIds = requests.map((r) => r._id);
+    const acceptedGrouped = await DonorResponse.aggregate([
+      { $match: { bloodRequest: { $in: requestIds }, status: "accepted" } },
+      { $group: { _id: "$bloodRequest", count: { $sum: 1 } } }
+    ]);
+    const acceptedMap = new Map();
+    acceptedGrouped.forEach((g) =>
+      acceptedMap.set(g._id.toString(), g.count)
+    );
+
+    const enrichedRequests = requests.map((r) => {
+      const obj = r.toObject();
+      const count = acceptedMap.get(r._id.toString()) ?? obj.unitsAccepted ?? 0;
+      obj.unitsAccepted = count;
+      if (count >= obj.units && obj.status === "open") {
+        obj.status = "matched";
+      }
+      return obj;
+    });
+
     const totalPages = Math.ceil(totalRequests / limit);
 
     return res.status(200).json({
       success: true,
       totalRequests,
-      bloodRequests: requests,
+      bloodRequests: enrichedRequests,
       pagination: {
         currentPage: page,
         limit,
@@ -574,9 +596,67 @@ const getBloodRequestById = async (req, res) => {
       });
     }
 
+    // Fetch all donor responses for this blood request
+    const rawResponses = await DonorResponse.find({ bloodRequest: requestId })
+      .populate("donor", "name phone email city")
+      .sort({ createdAt: -1 });
+
+    const acceptedCount = rawResponses.filter(
+      (r) => r.status === "accepted"
+    ).length;
+
+    // Synchronize unitsAccepted and status on the blood request document if needed
+    let needsSave = false;
+    if (bloodRequest.unitsAccepted !== acceptedCount) {
+      bloodRequest.unitsAccepted = acceptedCount;
+      needsSave = true;
+    }
+    if (acceptedCount >= bloodRequest.units && bloodRequest.status === "open") {
+      bloodRequest.status = "matched";
+      needsSave = true;
+    }
+    if (needsSave) {
+      await bloodRequest.save();
+    }
+
+    const formattedResponses = rawResponses.map((r) => {
+      const donorUser = r.donor || {};
+      const donorName = donorUser.name || "Donor";
+      const isAccepted = r.status === "accepted";
+      return {
+        _id: r._id,
+        id: r._id,
+        status: r.status,
+        message: r.message,
+        name: donorName,
+        donorName: donorName,
+        phone: isAccepted ? donorUser.phone : null,
+        email: isAccepted ? donorUser.email : null,
+        city: donorUser.city || null,
+        respondedAt: r.createdAt,
+        createdAt: r.createdAt,
+        donor: {
+          id: donorUser._id,
+          name: donorName,
+          phone: isAccepted ? donorUser.phone : null,
+          email: isAccepted ? donorUser.email : null,
+          city: donorUser.city || null
+        }
+      };
+    });
+
+    const bloodRequestObj = {
+      ...bloodRequest.toObject(),
+      unitsAccepted: acceptedCount,
+      responses: formattedResponses
+    };
+
     return res.status(200).json({
       success: true,
-      bloodRequest
+      bloodRequest: bloodRequestObj,
+      request: bloodRequestObj,
+      responses: formattedResponses,
+      unitsAccepted: acceptedCount
     });
   } catch (error) {
     console.error("Get blood request by ID error:", error.message);

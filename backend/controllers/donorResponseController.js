@@ -2,6 +2,8 @@ const mongoose = require("mongoose");
 const DonorResponse = require("../models/DonorResponse");
 const BloodRequest = require("../models/BloodRequest");
 const Donor = require("../models/Donor");
+const Notification = require("../models/Notification");
+const User = require("../models/User");
 
 // Donor accepts or declines a blood request
 const respondToBloodRequest = async (req, res) => {
@@ -72,10 +74,41 @@ const respondToBloodRequest = async (req, res) => {
       message
     });
 
+    // Synchronize unitsAccepted and status on the blood request
+    const acceptedCount = await DonorResponse.countDocuments({
+      bloodRequest: bloodRequest._id,
+      status: "accepted"
+    });
+
+    bloodRequest.unitsAccepted = acceptedCount;
+    if (acceptedCount >= bloodRequest.units && bloodRequest.status === "open") {
+      bloodRequest.status = "matched";
+    }
+    await bloodRequest.save();
+
+    // Create notification for requester
+    try {
+      const donorUser = await User.findById(req.user.id).select("name phone");
+      const donorName = donorUser?.name || "A donor";
+      await Notification.create({
+        userId: bloodRequest.requester,
+        title: status === "accepted" ? "Donor Accepted Your Request" : "Donor Response Update",
+        message: status === "accepted"
+          ? `${donorName} has accepted your blood request for ${bloodRequest.bloodGroup} in ${bloodRequest.city}.`
+          : `A donor has declined your blood request for ${bloodRequest.bloodGroup}.`,
+        type: "request_update",
+        relatedRequest: bloodRequest._id
+      });
+    } catch (notifErr) {
+      console.error("Failed to notify requester:", notifErr.message);
+    }
+
     return res.status(201).json({
       success: true,
       message: "Your response has been saved",
-      response
+      response,
+      unitsAccepted: acceptedCount,
+      requestStatus: bloodRequest.status
     });
   } catch (error) {
     if (error.code === 11000) {
@@ -153,7 +186,6 @@ const getMyResponses = async (req, res) => {
     });
   }
 };
-
 
 module.exports = {
   respondToBloodRequest,

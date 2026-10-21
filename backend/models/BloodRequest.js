@@ -34,6 +34,16 @@ const bloodRequestSchema = new mongoose.Schema(
       }
     },
 
+    unitsAccepted: {
+      type: Number,
+      default: 0,
+      min: 0,
+      validate: {
+        validator: Number.isSafeInteger,
+        message: "Units accepted must be an integer"
+      }
+    },
+
     urgency: {
       type: String,
       enum: ["normal", "urgent", "emergency"],
