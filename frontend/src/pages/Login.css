@@ -420,6 +420,21 @@
   font-size: 12px;
 }
 
+.field-error-msg {
+  color: #b20024;
+  font-size: 11.5px;
+  font-weight: 600;
+  margin-top: -2px;
+  margin-bottom: 4px;
+  display: block;
+  text-align: left;
+}
+
+input.input-invalid {
+  border-color: #b20024 !important;
+  background-color: #fff5f5 !important;
+}
+
 .register-prompt {
   margin: 22px 0;
   color: #68748b;

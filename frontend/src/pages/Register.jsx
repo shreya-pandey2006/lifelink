@@ -1,21 +1,63 @@
 import { useState } from "react";
 import "./Register.css";
+import {
+  validateName,
+  validateEmail,
+  validatePassword,
+  validateConfirmPassword,
+} from "../utils/validators";
 
 function Register({ onRegister, loading, error, onGoLogin }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [touched, setTouched] = useState({});
+
+  function validate(fields = { name, email, password, confirmPassword }) {
+    const errors = {};
+    const nameErr = validateName(fields.name);
+    if (nameErr) errors.name = nameErr;
+
+    const emailErr = validateEmail(fields.email);
+    if (emailErr) errors.email = emailErr;
+
+    const passErr = validatePassword(fields.password, { minLength: 6, requireMixed: true });
+    if (passErr) errors.password = passErr;
+
+    const confirmErr = validateConfirmPassword(fields.confirmPassword, fields.password);
+    if (confirmErr) errors.confirmPassword = confirmErr;
+
+    return errors;
+  }
+
+  function handleBlur(field) {
+    setTouched((prev) => ({ ...prev, [field]: true }));
+    setFieldErrors(validate());
+  }
 
   function handleSubmit(event) {
     event.preventDefault();
+    setTouched({
+      name: true,
+      email: true,
+      password: true,
+      confirmPassword: true,
+    });
 
-    if (password !== confirmPassword) {
-      alert("Passwords do not match.");
+    const errors = validate();
+    setFieldErrors(errors);
+
+    if (Object.keys(errors).length > 0) {
       return;
     }
 
-    onRegister({ name, email, password });
+    onRegister({
+      name: name.trim(),
+      email: email.trim().toLowerCase(),
+      password,
+    });
   }
 
   return (
@@ -126,50 +168,82 @@ function Register({ onRegister, loading, error, onGoLogin }) {
             </p>
           </div>
 
-          <form className="auth-form" onSubmit={handleSubmit}>
+          <form className="auth-form" onSubmit={handleSubmit} noValidate>
             <label htmlFor="register-name">Full Name</label>
             <input
               id="register-name"
               type="text"
+              className={touched.name && fieldErrors.name ? "input-invalid" : ""}
               placeholder="Enter your full name"
               value={name}
-              onChange={(event) => setName(event.target.value)}
+              onChange={(event) => {
+                setName(event.target.value);
+                if (touched.name) setFieldErrors(validate({ name: event.target.value, email, password, confirmPassword }));
+              }}
+              onBlur={() => handleBlur("name")}
               autoComplete="name"
               required
             />
+            {touched.name && fieldErrors.name && (
+              <span className="field-error-msg">{fieldErrors.name}</span>
+            )}
 
             <label htmlFor="register-email">Email Address</label>
             <input
               id="register-email"
               type="email"
+              className={touched.email && fieldErrors.email ? "input-invalid" : ""}
               placeholder="Enter your email"
               value={email}
-              onChange={(event) => setEmail(event.target.value)}
+              onChange={(event) => {
+                setEmail(event.target.value);
+                if (touched.email) setFieldErrors(validate({ name, email: event.target.value, password, confirmPassword }));
+              }}
+              onBlur={() => handleBlur("email")}
               autoComplete="email"
               required
             />
+            {touched.email && fieldErrors.email && (
+              <span className="field-error-msg">{fieldErrors.email}</span>
+            )}
 
             <label htmlFor="register-password">Password</label>
             <input
               id="register-password"
               type="password"
-              placeholder="Create a password"
+              className={touched.password && fieldErrors.password ? "input-invalid" : ""}
+              placeholder="Create a password (min. 6 chars, letters & numbers)"
               value={password}
-              onChange={(event) => setPassword(event.target.value)}
+              onChange={(event) => {
+                setPassword(event.target.value);
+                if (touched.password) setFieldErrors(validate({ name, email, password: event.target.value, confirmPassword }));
+              }}
+              onBlur={() => handleBlur("password")}
               autoComplete="new-password"
               required
             />
+            {touched.password && fieldErrors.password && (
+              <span className="field-error-msg">{fieldErrors.password}</span>
+            )}
 
             <label htmlFor="register-confirm">Confirm Password</label>
             <input
               id="register-confirm"
               type="password"
+              className={touched.confirmPassword && fieldErrors.confirmPassword ? "input-invalid" : ""}
               placeholder="Enter password again"
               value={confirmPassword}
-              onChange={(event) => setConfirmPassword(event.target.value)}
+              onChange={(event) => {
+                setConfirmPassword(event.target.value);
+                if (touched.confirmPassword) setFieldErrors(validate({ name, email, password, confirmPassword: event.target.value }));
+              }}
+              onBlur={() => handleBlur("confirmPassword")}
               autoComplete="new-password"
               required
             />
+            {touched.confirmPassword && fieldErrors.confirmPassword && (
+              <span className="field-error-msg">{fieldErrors.confirmPassword}</span>
+            )}
 
             {error && <p className="auth-error">{error}</p>}
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme.dart';
+import '../../core/validators.dart';
 import '../../providers/donor_provider.dart';
 import '../../widgets/ui.dart';
 class DonorDetailsScreen extends StatefulWidget {
@@ -38,12 +39,6 @@ class _DonorDetailsScreenState extends State<DonorDetailsScreen> {
     _hemoglobin.dispose();
     _days.dispose();
     super.dispose();
-  }
-  String? _number(String? v, double min, double max, String label) {
-    final n = double.tryParse((v ?? '').trim().replaceAll(',', '.'));
-    if (n == null) return 'Enter a number';
-    if (n < min || n > max) return '$label must be between $min and $max';
-    return null;
   }
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
@@ -97,7 +92,7 @@ class _DonorDetailsScreenState extends State<DonorDetailsScreen> {
                   keyboardType: TextInputType.number,
                   decoration: fieldDecoration(
                       hint: 'e.g. 25 (18–100)', icon: Icons.cake_outlined),
-                  validator: (v) => _number(v, 18, 100, 'Age'),
+                  validator: (v) => Validators.validateAge(v, min: 18, max: 100, fieldName: 'Age', isDonor: true, required: true),
                 ),
                 const SizedBox(height: 16),
                 const FieldLabel('Weight (kg)'),
@@ -105,21 +100,21 @@ class _DonorDetailsScreenState extends State<DonorDetailsScreen> {
                   controller: _weight,
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   decoration: fieldDecoration( hint: 'e.g. 68.5 (30–300 kg)', icon: Icons.monitor_weight_outlined),
-                  validator: (v) => _number(v, 30, 300, 'Weight'),
+                  validator: (v) => Validators.validateWeight(v, min: 30, max: 300, fieldName: 'Weight', isDonor: true, required: true),
                 ),
                 const SizedBox(height: 16),
                 const FieldLabel('Hemoglobin (g/dL)'),
                 TextFormField( controller: _hemoglobin,
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   decoration: fieldDecoration( hint: 'e.g. 14.2 (3–25 g/dL)', icon: Icons.water_drop_outlined),
-                  validator: (v) => _number(v, 3, 25, 'Hemoglobin'),
+                  validator: (v) => Validators.validateHemoglobin(v, min: 3, max: 25, required: true),
                 ),
                 const SizedBox(height: 16),
                 const FieldLabel('Days since your last donation (optional)'),
                 TextFormField( controller: _days, keyboardType: TextInputType.number,
                   decoration: fieldDecoration( hint: 'e.g. 100 (leave blank if never donated)',
                       icon: Icons.event_outlined),
-                  validator: (v) => (v == null || v.trim().isEmpty) ? null : _number(v, 0, 20000, 'Days'),
+                  validator: (v) => Validators.validateAge(v, min: 0, max: 20000, fieldName: 'Days', required: false),
                 ),
                 if (_error != null) ...[
                   const SizedBox(height: 12),

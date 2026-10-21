@@ -64,37 +64,23 @@ class RequestProvider extends ChangeNotifier {
       }
     }
 
-    final Map<String, dynamic> patientPayload = patient != null
-        ? Map<String, dynamic>.from(patient)
-        : <String, dynamic>{
-            'age': 30,
-            'gender': 'Other',
-            'weightKg': 60.0,
-            'healthIssue': 'General Surgery',
-            'hemoglobinGDl': 12.0,
-            'requiredWithinHours': 24,
-            'activeBleeding': false,
-            'previousTransfusions': false,
-            'plateletCount': 250000,
-            'systolicBp': 120,
-            'heartRate': 80,
-            'spo2Percent': 98,
-            'bloodComponentNeeded': 'Whole Blood',
-          };
-
-    if (effectiveLat != null) {
-      patientPayload['lat'] = effectiveLat;
-      patientPayload['latitude'] = effectiveLat;
-      patientPayload['hospitalLatitude'] = effectiveLat;
-    }
-    if (effectiveLng != null) {
-      patientPayload['lng'] = effectiveLng;
-      patientPayload['longitude'] = effectiveLng;
-      patientPayload['hospitalLongitude'] = effectiveLng;
-    }
-    if (hospitalName.trim().isNotEmpty) {
-      patientPayload['hospital'] = hospitalName.trim();
-      patientPayload['hospitalName'] = hospitalName.trim();
+    Map<String, dynamic>? patientPayload;
+    if (patient != null && patient.isNotEmpty) {
+      patientPayload = Map<String, dynamic>.from(patient);
+      if (effectiveLat != null) {
+        patientPayload['lat'] = effectiveLat;
+        patientPayload['latitude'] = effectiveLat;
+        patientPayload['hospitalLatitude'] = effectiveLat;
+      }
+      if (effectiveLng != null) {
+        patientPayload['lng'] = effectiveLng;
+        patientPayload['longitude'] = effectiveLng;
+        patientPayload['hospitalLongitude'] = effectiveLng;
+      }
+      if (hospitalName.trim().isNotEmpty) {
+        patientPayload['hospital'] = hospitalName.trim();
+        patientPayload['hospitalName'] = hospitalName.trim();
+      }
     }
 
     final body = <String, dynamic>{
@@ -104,7 +90,7 @@ class RequestProvider extends ChangeNotifier {
       'urgency': mapUrgency(urgency),
       if (hospitalName.trim().isNotEmpty) 'hospital': hospitalName.trim(),
       if (hospitalName.trim().isNotEmpty) 'hospitalName': hospitalName.trim(),
-      'patient': patientPayload,
+      'patient': ?patientPayload,
       'lat': ?effectiveLat,
       'lng': ?effectiveLng,
     };

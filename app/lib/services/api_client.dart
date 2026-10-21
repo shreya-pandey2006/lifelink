@@ -4,7 +4,6 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../core/config.dart';
-import 'mock_api.dart';
 class ApiException implements Exception {
   final String message;
   final int? statusCode;
@@ -71,9 +70,6 @@ class ApiClient {
   Future<dynamic> _send(String method, String path,
       [Map<String, dynamic>? body,
       Map<String, dynamic>? queryParameters]) async {
-    if (kUseMockApi) {
-      return MockApi.instance.handle(method, path, body, token);
-    }
     final cleanBase = kBaseUrl.endsWith('/')
         ? kBaseUrl.substring(0, kBaseUrl.length - 1)
         : kBaseUrl;
