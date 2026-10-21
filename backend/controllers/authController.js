@@ -70,30 +70,24 @@ exports.register = async (req, res) => {
             cleanPhone = phone.trim().replace(/^\+91[\s-]?/, "");
         }  
 
-        // Validate email
+    
         const normalizedEmail = email.trim().toLowerCase();
 
+        // Validate email format
         if (!validator.isEmail(normalizedEmail)) {
             return res.status(400).json({
                 success: false,
                 message: "Please enter a valid email address"
             });
         }
-        // Check common email domain typos
-        const commonDomainTypos = {
-            "gmil.com": "gmail.com",
-            "gmai.com": "gmail.com",
-            "gamil.com": "gmail.com",
-            "yaho.com": "yahoo.com",
-            "outloo.com": "outlook.com"
-        };
 
-        const [emailUsername, emailDomain] = normalizedEmail.split("@");
+        // Allow only Gmail addresses
+          const emailDomain = normalizedEmail.split("@")[1];
 
-        if (commonDomainTypos[emailDomain]) {
+        if (emailDomain !== "gmail.com") {
             return res.status(400).json({
                 success: false,
-                message: `Did you mean ${emailUsername}@${commonDomainTypos[emailDomain]}?`
+                message: "Email must end with @gmail.com"
             });
         }
 
