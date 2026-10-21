@@ -58,17 +58,18 @@ exports.register = async (req, res) => {
 
         // Validate optional phone number
         let cleanPhone;
-
         if (phone !== undefined && phone !== null && phone !== "") {
-            if ( typeof phone !== "string" || !/^[0-9]{10}$/.test(phone.trim())
+            if ( typeof phone !== "string" || !/^(?:\+91[\s-]?)?[0-9]{10}$/.test(phone.trim())
             ) {
                 return res.status(400).json({
                     success: false,
-                    message: "Phone number must contain exactly 10 digits"
+                    message: "Phone number must contain exactly 10 digits after the country code"
                 });
             }
-            cleanPhone = phone.trim();
-        }
+
+            cleanPhone = phone.trim().replace(/^\+91[\s-]?/, "");
+        }  
+
         // Validate email
         const normalizedEmail = email.trim().toLowerCase();
 
