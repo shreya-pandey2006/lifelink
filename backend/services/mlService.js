@@ -12,7 +12,7 @@ async function callML(url, payload) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(30000),
+      signal: AbortSignal.timeout(100000),
     });
   } catch (error) {
     throw new Error(
