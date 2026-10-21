@@ -1,6 +1,7 @@
 const User = require("../models/User");
 const bcrypt = require("bcrypt");
 const Donor = require("../models/Donor");
+const validator = require("validator");
 
 exports.register = async (req, res) => {
     try {
@@ -13,13 +14,17 @@ exports.register = async (req, res) => {
             });
         }
         
-        if (typeof name !== "string" || name.trim().length < 2 || name.trim().length > 100) {
+        if (
+            typeof name !== "string" ||
+            name.trim().length < 2 ||
+            name.trim().length > 100
+        ) {
             return res.status(400).json({
                 success: false,
                 message: "Name must be between 2 and 100 characters"
             });
         }
-
+        
         if (typeof city !== "string" || city.trim().length < 1 || city.trim().length > 100) {
             return res.status(400).json({
                 success: false,
@@ -31,15 +36,16 @@ exports.register = async (req, res) => {
             phone !== undefined &&
             phone !== null &&
             phone !== "" &&
-            (typeof phone !== "string" ||
-                !/^\+?[0-9]{10,15}$/.test(phone.trim()))
+            (
+                typeof phone !== "string" ||  !/^\+?[0-9]{10,15}$/.test(phone.trim())
+            )
         ) {
            return res.status(400).json({
                 success: false,
-                message: "Please enter a valid phone number (10–15 digits)"
+                message: "Please enter a valid phone number (10–15 digits, optional + prefix)"
             });
         }
-        
+
         if (typeof email !== "string") {
             return res.status(400).json({
                 success: false,
@@ -47,19 +53,24 @@ exports.register = async (req, res) => {
             });
         }
         const normalizedEmail = email.trim().toLowerCase();
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-        if (!emailRegex.test(normalizedEmail)) {
+        if (typeof email !== "string" || !validator.isEmail(email.trim())) {
             return res.status(400).json({
                 success: false,
                 message: "Please enter a valid email address"
             });
         }
 
-        if (typeof password !== "string" || password.length < 6) {
+        if (
+            typeof password !== "string" ||
+            password.length < 8 ||
+            !/[A-Z]/.test(password) ||
+            !/[a-z]/.test(password) ||
+            !/[0-9]/.test(password) ||
+            !/[^A-Za-z0-9]/.test(password)
+        ) {
             return res.status(400).json({
                 success: false,
-                message: "Password must be at least 6 characters"
+                message: "Password must be at least 8 characters and contain uppercase, lowercase, number, and special character"
             });
         }
 
@@ -75,7 +86,7 @@ exports.register = async (req, res) => {
             "AB+", "AB-", "O+", "O-"
         ];   
 
-        if ( role === "donor" && !allowedBloodGroups.includes(req.body.bloodGroup)
+        if (role === "donor" && !allowedBloodGroups.includes(req.body.bloodGroup)
         ) {
             return res.status(400).json({
                 success: false,
