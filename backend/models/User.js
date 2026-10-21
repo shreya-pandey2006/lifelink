@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+
 const userSchema = new mongoose.Schema(
     {
         name: {
@@ -6,7 +7,7 @@ const userSchema = new mongoose.Schema(
             required: true,
             trim: true,
             minlength: 2,
-            maxlength: 50,
+            maxlength: 20,
             match: /^[A-Za-z]+(?:[ '-][A-Za-z]+)*$/
         },
         email: {
@@ -30,7 +31,7 @@ const userSchema = new mongoose.Schema(
             trim: true,
             validate: {
                 validator: function (value) {
-                   return !value || /^\+?[0-9]{10,15}$/.test(value);
+                    return !value || /^\+?[0-9]{10,15}$/.test(value);
                 },
                 message: "Enter a valid phone number"
             }
@@ -41,14 +42,11 @@ const userSchema = new mongoose.Schema(
             trim: true,
             maxlength: 100,
             match: /^[A-Za-z]+(?:[ '-][A-Za-z]+)*$/
-        },
-        isEmailVerified: {
-            type: Boolean,
-            default: false
-        },
+        }
     },
     {
         timestamps: true
     }
 );
+
 module.exports = mongoose.model("User", userSchema);

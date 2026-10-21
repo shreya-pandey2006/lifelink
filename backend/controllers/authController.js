@@ -3,13 +3,14 @@ const bcrypt = require("bcrypt");
 const Donor = require("../models/Donor");
 const validator = require("validator");
 const jwt = require("jsonwebtoken");
-const { createAndSendOtp } = require("../utils/emailOtp");
 
 exports.register = async (req, res) => {
-    try {
-        const { name, email, password, role, phone, city } = req.body;
+    let user = null;
 
-        // Check required fields and their types
+    try {
+        const { name, email, password, role, phone, city, bloodGroup } = req.body;
+
+        // Validate required fields
         if (
             typeof name !== "string" ||
             typeof email !== "string" ||
@@ -31,22 +32,22 @@ exports.register = async (req, res) => {
         // Validate name
         const cleanName = name.trim().replace(/\s+/g, " ");
 
-        if (cleanName.length < 2 || cleanName.length > 50) {
-           return res.status(400).json({
-               success: false,
-               message: "Name must be between 2 and 50 characters"
-            });
-        }
-
-        if (!/^[A-Za-z]+(?:[ '-][A-Za-z]+)*$/.test(cleanName)) {
+        if (
+            cleanName.length < 2 ||
+            cleanName.length > 50 ||
+            !/^[A-Za-z]+(?:[ '-][A-Za-z]+)*$/.test(cleanName)
+        ) {
             return res.status(400).json({
                 success: false,
-                message: "Name can contain only English letters, spaces, hyphens, and apostrophes"
+                message: "Name must be 2–50 characters and contain only English letters, spaces, hyphens, or apostrophes"
             });
         }
 
-       const cleanCity = city.trim().replace(/\s+/g, " ");
-        if ( cleanCity.length > 100 ||
+        // Validate city
+        const cleanCity = city.trim().replace(/\s+/g, " ");
+
+        if (
+            cleanCity.length > 100 ||
             !/^[A-Za-z]+(?:[ '-][A-Za-z]+)*$/.test(cleanCity)
         ) {
             return res.status(400).json({
@@ -54,21 +55,26 @@ exports.register = async (req, res) => {
                 message: "Enter a valid city using letters, spaces, hyphens, or apostrophes"
             });
         }
-        
+
+        // Validate optional phone number
         let cleanPhone;
+
         if (phone !== undefined && phone !== null && phone !== "") {
-            if ( typeof phone !== "string" ||
+            if (
+                typeof phone !== "string" ||
                 !/^\+?[0-9]{10,15}$/.test(phone.trim())
             ) {
-            return res.status(400).json({
-                  success: false,
-                  message: "Phone number must contain 10–15 digits, optionally starting with +"
-            });
-        }
+                return res.status(400).json({
+                    success: false,
+                    message: "Phone number must contain 10–15 digits, optionally starting with +"
+                });
+            }
+
             cleanPhone = phone.trim();
         }
 
-       const normalizedEmail = email.trim().toLowerCase();
+        // Validate email
+        const normalizedEmail = email.trim().toLowerCase();
 
         if (!validator.isEmail(normalizedEmail)) {
             return res.status(400).json({
@@ -77,6 +83,7 @@ exports.register = async (req, res) => {
             });
         }
 
+        // Check common email domain typos
         const commonDomainTypos = {
             "gmil.com": "gmail.com",
             "gmai.com": "gmail.com",
@@ -86,23 +93,16 @@ exports.register = async (req, res) => {
         };
 
         const [emailUsername, emailDomain] = normalizedEmail.split("@");
+
         if (commonDomainTypos[emailDomain]) {
             return res.status(400).json({
                 success: false,
                 message: `Did you mean ${emailUsername}@${commonDomainTypos[emailDomain]}?`
             });
-        } 
-
-        const domain = normalizedEmail.split("@")[1];
-         if (commonDomainTypos[domain]) {
-            return res.status(400).json({
-                success: false,
-                message: `Did you mean ${normalizedEmail.split("@")[0]}@${commonDomainTypos[domain]}?`
-            });
         }
 
+        // Validate password strength
         if (
-            typeof password !== "string" ||
             password.length < 8 ||
             !/[A-Z]/.test(password) ||
             !/[a-z]/.test(password) ||
@@ -115,26 +115,28 @@ exports.register = async (req, res) => {
             });
         }
 
+        // Validate role
         if (!["requester", "donor"].includes(role)) {
             return res.status(400).json({
-               success: false,
-               message: "Invalid user role"
+                success: false,
+                message: "Invalid user role"
             });
         }
 
+        // Validate donor blood group
         const allowedBloodGroups = [
             "A+", "A-", "B+", "B-",
             "AB+", "AB-", "O+", "O-"
-        ];   
+        ];
 
-        if (role === "donor" && !allowedBloodGroups.includes(req.body.bloodGroup)
-        ) {
+        if (role === "donor" && !allowedBloodGroups.includes(bloodGroup)) {
             return res.status(400).json({
                 success: false,
                 message: "A valid blood group is required for donors"
             });
         }
 
+        // Prevent duplicate registrations
         const existingUser = await User.findOne({
             email: normalizedEmail
         });
@@ -145,69 +147,83 @@ exports.register = async (req, res) => {
                 message: "Email already exists"
             });
         }
+
+        // Hash password
         const passwordHash = await bcrypt.hash(password, 10);
-        const user = await User.create({
+
+        // Create user without OTP/email verification
+        user = await User.create({
             name: cleanName,
             email: normalizedEmail,
             passwordHash,
             role,
             phone: cleanPhone,
-            city: cleanCity,
-            isEmailVerified: false
+            city: cleanCity
         });
-        try {
-            if (role === "donor") {
-                await Donor.create({
-                    user: user._id,
-                    bloodGroup: req.body.bloodGroup,
-                    city: city.trim()
-                });
-            }
-            // Generate and send the email verification OTP
-            await createAndSendOtp(user);
 
-        } catch (error) {
-            // Clean up if donor creation or OTP delivery fails
-            if (role === "donor") {
-                await Donor.deleteOne({ user: user._id });
-            }
-            await User.findByIdAndDelete(user._id);
-            throw error;
+        // Create donor profile if the role is donor
+        if (role === "donor") {
+            await Donor.create({
+                user: user._id,
+                bloodGroup,
+                city: cleanCity
+            });
         }
 
         return res.status(201).json({
             success: true,
-            message: "Registration successful. Please verify your email using the OTP sent to your inbox.",
-            requiresEmailVerification: true,
-            email: user.email
+            message: "Registration successful",
+            user: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                role: user.role
+            }
         });
-        } catch (error) {
-            console.error("Registration error:", error.message);
 
-            return res.status(500).json({
-                success: false,
-                message: "Registration failed"
-            });
+    } catch (error) {
+        console.error("Registration error:", error.message);
+
+        // Roll back partially created records on failure
+        if (user) {
+            try {
+                if (user.role === "donor") {
+                    await Donor.deleteOne({ user: user._id });
+                }
+
+                await User.findByIdAndDelete(user._id);
+            } catch (cleanupError) {
+                console.error("Registration cleanup error:", cleanupError.message);
+            }
         }
-        };        
+
+        return res.status(500).json({
+            success: false,
+            message: "Registration failed"
+        });
+    }
+};
 
 
 exports.login = async (req, res) => {
     try {
         const { email, password } = req.body;
 
-       if (
-        typeof email !== "string" ||
-        !email.trim() ||
-        typeof password !== "string" ||
-        !password
-    ) {
-        return res.status(400).json({
-            success: false,
-            message: "Email and password are required"
-        });
-    }
+        // Validate login fields
+        if (
+            typeof email !== "string" ||
+            !email.trim() ||
+            typeof password !== "string" ||
+            !password
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: "Email and password are required"
+            });
+        }
+
         const normalizedEmail = email.trim().toLowerCase();
+
         const user = await User.findOne({
             email: normalizedEmail
         });
@@ -219,6 +235,7 @@ exports.login = async (req, res) => {
             });
         }
 
+        // Compare password with stored hash
         const isMatch = await bcrypt.compare(
             password,
             user.passwordHash
@@ -230,14 +247,12 @@ exports.login = async (req, res) => {
                 message: "Invalid email or password"
             });
         }
-        if (!user.isEmailVerified) {
-            return res.status(403).json({
-                success: false,
-                message: "Please verify your email before logging in",
-                requiresEmailVerification: true,
-                email: user.email
-            });
+
+        // Generate JWT without requiring OTP verification
+        if (!process.env.JWT_SECRET) {
+            throw new Error("JWT_SECRET is not configured");
         }
+
         const token = jwt.sign(
             {
                 id: user._id,
@@ -247,7 +262,7 @@ exports.login = async (req, res) => {
             { expiresIn: "1d" }
         );
 
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
             message: "Login successful",
             token,
@@ -258,10 +273,11 @@ exports.login = async (req, res) => {
                 role: user.role
             }
         });
+
     } catch (error) {
         console.error("Login error:", error.message);
 
-        res.status(500).json({
+        return res.status(500).json({
             success: false,
             message: "Login failed"
         });
@@ -282,12 +298,15 @@ exports.getMe = async (req, res) => {
             });
         }
 
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
             user
         });
+
     } catch (error) {
-        res.status(500).json({
+        console.error("Get profile error:", error.message);
+
+        return res.status(500).json({
             success: false,
             message: "Failed to fetch user"
         });

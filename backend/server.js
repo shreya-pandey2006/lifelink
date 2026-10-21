@@ -4,6 +4,7 @@ const helmet = require("helmet");
 const mongoose = require("mongoose");
 require("dotenv").config();
 
+// Import routes
 const healthRoutes = require("./routes/healthRoutes");
 const authRoutes = require("./routes/authRoutes");
 const donorRoutes = require("./routes/donorRoutes");
@@ -15,51 +16,29 @@ const notificationRoutes = require("./routes/notificationRoutes");
 
 const app = express();
 
-// Basic security
+// Security
 app.disable("x-powered-by");
 app.use(helmet());
 
-// Allowed frontend origins from .env
+// Allowed frontend URLs
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || "")
     .split(",")
     .map(origin => origin.trim())
     .filter(Boolean);
 
+// CORS configuration
 app.use(cors({
     origin: (origin, callback) => {
-        // Allow requests without an Origin header, such as
-        // server-to-server requests and some API clients.
         if (!origin || allowedOrigins.includes(origin)) {
             return callback(null, true);
         }
 
         return callback(new Error("Origin not allowed by CORS"));
-    },
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
-    allowedHeaders: ["Content-Type", "Authorization"]
+    }
 }));
 
-// Parse JSON with a size limit
+// Read JSON data sent by the frontend or Postman
 app.use(express.json({ limit: "100kb" }));
-
-// Handle malformed JSON and oversized request bodies
-app.use((err, req, res, next) => {
-    if (err instanceof SyntaxError && err.status === 400 && "body" in err) {
-        return res.status(400).json({
-            success: false,
-            message: "Invalid JSON in request body"
-        });
-    }
-
-    if (err.status === 413) {
-        return res.status(413).json({
-            success: false,
-            message: "Request body is too large"
-        });
-    }
-
-    next(err);
-});
 
 // API routes
 app.use("/api/health", healthRoutes);
@@ -71,7 +50,7 @@ app.use("/api/ml", mlRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/notifications", notificationRoutes);
 
-// Root route
+// Home route
 app.get("/", (req, res) => {
     res.status(200).json({
         success: true,
@@ -79,22 +58,21 @@ app.get("/", (req, res) => {
     });
 });
 
-// Handle unknown routes
+// Handle routes that do not exist
 app.use((req, res) => {
     res.status(404).json({
         success: false,
-        message: `Route not found: ${req.method} ${req.originalUrl}`
+        message: "Route not found"
     });
 });
 
-// Global error handler (must remain last)
+// Error handling
 app.use((err, req, res, next) => {
+    console.error("API Error:", err.message);
+
     if (res.headersSent) {
         return next(err);
     }
-
-    // Log details on the server, not in the client response
-    console.error("API Error:", err.message);
 
     if (err.message === "Origin not allowed by CORS") {
         return res.status(403).json({
@@ -103,35 +81,39 @@ app.use((err, req, res, next) => {
         });
     }
 
-    const status = Number.isInteger(err.status) &&
-        err.status >= 400 &&
-        err.status < 500
-        ? err.status
-        : 500;
+    if (err instanceof SyntaxError && err.status === 400 && "body" in err) {
+        return res.status(400).json({
+            success: false,
+            message: "Invalid JSON"
+        });
+    }
 
-    res.status(status).json({
+    if (err.status === 413) {
+        return res.status(413).json({
+            success: false,
+            message: "Request body is too large"
+        });
+    }
+
+    return res.status(500).json({
         success: false,
-        message: status < 500
-            ? err.message
-            : "Internal server error"
+        message: "Internal server error"
     });
 });
 
-// Start server only after MongoDB connects
+// Connect to MongoDB and start the server
 const PORT = process.env.PORT || 5000;
 
 async function startServer() {
-    if (!process.env.MONGODB_URI) {
-        console.error("MONGODB_URI is missing from environment variables");
-        process.exit(1);
-    }
-
-    if (allowedOrigins.length === 0) {
-        console.error("ALLOWED_ORIGINS must contain at least one frontend origin");
-        process.exit(1);
-    }
-
     try {
+        if (!process.env.MONGODB_URI) {
+            throw new Error("MONGODB_URI is missing");
+        }
+
+        if (allowedOrigins.length === 0) {
+            throw new Error("ALLOWED_ORIGINS is missing");
+        }
+
         await mongoose.connect(process.env.MONGODB_URI);
         console.log("MongoDB connected successfully!");
 
