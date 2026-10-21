@@ -276,22 +276,23 @@ class AlertCard extends StatelessWidget {
                               ),
                             ),
                           ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFDE8E8),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              '${alert.donorsPinged} Other Donors Pinged',
-                              style: const TextStyle(
-                                fontSize: 10.5,
-                                fontWeight: FontWeight.w700,
-                                color: kPrimaryDark,
+                          if (alert.donorsPinged > 0)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFDE8E8),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                '${alert.donorsPinged} Other Donors Pinged',
+                                style: const TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: kPrimaryDark,
+                                ),
                               ),
                             ),
-                          ),
                         ],
                       ),
                       const SizedBox(height: 12),

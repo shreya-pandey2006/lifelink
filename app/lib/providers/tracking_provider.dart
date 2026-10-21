@@ -26,17 +26,6 @@ class TrackingProvider extends ChangeNotifier {
           .map((e) => Responder.fromJson(asMap(e)))
           .toList();
 
-      if (responders.isEmpty) {
-        try {
-          final pd =
-              await ApiClient.instance.get('/requests/$id/potential-donors');
-          final pdMap = asMap(pd);
-          final donors = extractList(pdMap, ['potentialDonors', 'donors', 'data']);
-          responders = donors
-              .map((e) => Responder.fromJson(asMap(e)))
-              .toList();
-        } catch (_) {}
-      }
       limited = false;
       error = null;
     } on ApiException catch (e) {
@@ -66,21 +55,9 @@ class TrackingProvider extends ChangeNotifier {
         return;
       }
       request = matches.first;
-      limited = true;
+      limited = false;
       error = null;
-      try {
-        final pd =
-            await ApiClient.instance.get('/requests/$id/potential-donors');
-        final donors = (pd is Map
-                ? (pd['potentialDonors'] ?? pd['donors'] ?? pd['data'])
-                : pd) as List? ??
-            [];
-        responders = donors
-            .map((e) => Responder.fromJson(Map<String, dynamic>.from(e as Map)))
-            .toList();
-      } catch (_) {
-        responders = [];
-      }
+      responders = [];
     } on ApiException catch (e) {
       error = e.message;
     } catch (_) {

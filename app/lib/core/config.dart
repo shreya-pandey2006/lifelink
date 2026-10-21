@@ -1,2 +1,1 @@
-const bool kUseMockApi = false;
 const kBaseUrl = 'https://lifelink-backend-8onj.onrender.com/api';

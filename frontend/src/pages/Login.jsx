@@ -1,14 +1,42 @@
 import { useState } from "react";
 import "./Login.css";
+import { validateEmail, validatePassword } from "../utils/validators";
 
 function Login({ onLogin, loading, error, onGoRegister }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [touched, setTouched] = useState({});
+
+  function validate(fields = { email, password }) {
+    const errors = {};
+    const emailErr = validateEmail(fields.email);
+    if (emailErr) errors.email = emailErr;
+
+    const passErr = validatePassword(fields.password, { minLength: 6, requireMixed: false });
+    if (passErr) errors.password = passErr;
+
+    return errors;
+  }
+
+  function handleBlur(field) {
+    setTouched((prev) => ({ ...prev, [field]: true }));
+    setFieldErrors(validate());
+  }
 
   function handleSubmit(event) {
     event.preventDefault();
-    onLogin(email, password);
+    setTouched({ email: true, password: true });
+
+    const errors = validate();
+    setFieldErrors(errors);
+
+    if (Object.keys(errors).length > 0) {
+      return;
+    }
+
+    onLogin(email.trim().toLowerCase(), password);
   }
 
   return (
@@ -139,17 +167,25 @@ function Login({ onLogin, loading, error, onGoRegister }) {
             </p>
           </div>
 
-          <form className="auth-form" onSubmit={handleSubmit}>
+          <form className="auth-form" onSubmit={handleSubmit} noValidate>
             <label htmlFor="login-email">Email Address</label>
             <input
               id="login-email"
               type="email"
+              className={touched.email && fieldErrors.email ? "input-invalid" : ""}
               placeholder="Enter your registered email"
               value={email}
-              onChange={(event) => setEmail(event.target.value)}
+              onChange={(event) => {
+                setEmail(event.target.value);
+                if (touched.email) setFieldErrors(validate({ email: event.target.value, password }));
+              }}
+              onBlur={() => handleBlur("email")}
               autoComplete="email"
               required
             />
+            {touched.email && fieldErrors.email && (
+              <span className="field-error-msg">{fieldErrors.email}</span>
+            )}
 
             <div className="password-label">
               <label htmlFor="login-password">Password</label>
@@ -159,9 +195,14 @@ function Login({ onLogin, loading, error, onGoRegister }) {
               <input
                 id="login-password"
                 type={showPassword ? "text" : "password"}
+                className={touched.password && fieldErrors.password ? "input-invalid" : ""}
                 placeholder="Enter your password"
                 value={password}
-                onChange={(event) => setPassword(event.target.value)}
+                onChange={(event) => {
+                  setPassword(event.target.value);
+                  if (touched.password) setFieldErrors(validate({ email, password: event.target.value }));
+                }}
+                onBlur={() => handleBlur("password")}
                 autoComplete="current-password"
                 required
               />
@@ -173,6 +214,9 @@ function Login({ onLogin, loading, error, onGoRegister }) {
                 {showPassword ? "Hide" : "Show"}
               </button>
             </div>
+            {touched.password && fieldErrors.password && (
+              <span className="field-error-msg">{fieldErrors.password}</span>
+            )}
 
             {error && <p className="auth-error">{error}</p>}
 

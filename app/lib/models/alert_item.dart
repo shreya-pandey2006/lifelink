@@ -27,9 +27,9 @@ class AlertItem {
     this.lat,
     this.lng,
     this.createdAt,
-    this.department = 'ER Trauma Unit • Code Red Trauma',
-    this.donorsPinged = 3,
-    this.routeSnippet = 'Fastest Route to Hospital',
+    this.department = '',
+    this.donorsPinged = 0,
+    this.routeSnippet = '',
   });
 
   bool get isCritical => urgency == 3;
@@ -49,7 +49,7 @@ class AlertItem {
         .trim();
     final hospitalVal = rawHospital.isNotEmpty
         ? rawHospital
-        : (cityVal.isNotEmpty ? 'Hospital in $cityVal' : 'Medical Center');
+        : (cityVal.isNotEmpty ? 'Hospital in $cityVal' : 'Hospital');
 
     double? parsedLat = asDouble(j['lat'] ??
         j['latitude'] ??
@@ -79,27 +79,25 @@ class AlertItem {
         .trim();
 
     final dept = rawHealth.isNotEmpty
-        ? (rawUrgency == 3
-            ? 'ER Trauma Unit \u2022 $rawHealth'
-            : 'Scheduled Surgery \u2022 $rawHealth')
+        ? rawHealth
         : (rawUrgency == 3
-            ? 'ER Trauma Unit \u2022 Code Red Trauma'
-            : 'Pediatric Surgery \u2022 Scheduled Prep');
+            ? 'Emergency Blood Request'
+            : 'Blood Request');
 
     return AlertItem(
       requestId: (j['requestId'] ?? j['id'] ?? j['_id'] ?? '').toString(),
       bloodGroup: (j['bloodGroup'] ?? 'O-').toString(),
       units: asInt(j['units'], 1),
       hospitalName: hospitalVal,
-      city: cityVal.isNotEmpty ? cityVal : 'Seattle, WA',
+      city: cityVal,
       urgency: rawUrgency,
       status: (j['status'] ?? 'open').toString(),
       lat: parsedLat,
       lng: parsedLng,
       createdAt: DateTime.tryParse((j['createdAt'] ?? '').toString())?.toLocal(),
       department: dept,
-      donorsPinged: asInt(j['donorsPinged'] ?? j['matchingDonorsCount'], 3),
-      routeSnippet: (j['routeSnippet'] ?? 'Fastest Route via City Mainway').toString(),
+      donorsPinged: asInt(j['donorsPinged'] ?? j['matchingDonorsCount'], 0),
+      routeSnippet: (j['routeSnippet'] ?? '').toString(),
     );
   }
 }

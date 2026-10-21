@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme.dart';
+import '../../core/validators.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/ui.dart';
 class LoginScreen extends StatefulWidget {
@@ -84,9 +85,13 @@ class _LoginScreenState extends State<LoginScreen> {
                         const SizedBox(height: 20),
                         const FieldLabel('Email Address', trailing: 'Hospital or Personal'),
                         TextFormField(
-                          controller: _email, keyboardType: TextInputType.emailAddress,
-                          decoration: fieldDecoration( hint: 'name@example.com',icon: Icons.mail_outline),
-                          validator: (v) => (v == null || !v.contains('@')) ? 'Enter a valid email' : null,
+                          controller: _email,
+                          keyboardType: TextInputType.emailAddress,
+                          autovalidateMode: AutovalidateMode.onUserInteraction,
+                          decoration: fieldDecoration(
+                              hint: 'name@example.com',
+                              icon: Icons.mail_outline),
+                          validator: Validators.validateEmail,
                         ),
                         const SizedBox(height: 16),
                         Row(
@@ -97,7 +102,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             GestureDetector(
                               onTap: () => ScaffoldMessenger.of(context)
                                   .showSnackBar(const SnackBar(
-                                      content: Text( 'Password reset is not available in this demo.'))),
+                                      content: Text('Password reset is currently unavailable. Please contact support.'))),
                               child: const Text('Forgot password?',
                                   style: TextStyle(fontSize: 13,fontWeight: FontWeight.w700, color: kPrimaryDark)),
                             ),
@@ -112,7 +117,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               onPressed: () =>  setState(() => _obscure = !_obscure),
                             ),
                           ),
-                          validator: (v) => (v == null || v.length < 6)  ? 'At least 6 characters' : null,
+                          validator: (v) => Validators.validatePassword(v, requireMixed: false),
                         ),
                         if (_error != null) ...[
                           const SizedBox(height: 12),

@@ -67,12 +67,12 @@ class AlertProvider extends ChangeNotifier {
               createdAt: req.createdAt,
               department: (req.patient?['healthIssue'] != null &&
                       req.patient!['healthIssue'].toString().trim().isNotEmpty)
-                  ? 'ER Trauma Unit \u2022 ${req.patient!['healthIssue']}'
+                  ? req.patient!['healthIssue'].toString().trim()
                   : (req.urgency == 3
-                      ? 'ER Trauma Unit \u2022 Code Red Trauma'
-                      : 'Scheduled Surgery Prep'),
-              donorsPinged: 3,
-              routeSnippet: 'Fastest Route to ${req.hospitalName}',
+                      ? 'Emergency Blood Request'
+                      : 'Blood Request'),
+              donorsPinged: 0,
+              routeSnippet: '',
             );
           }
         }
@@ -177,44 +177,15 @@ class AlertProvider extends ChangeNotifier {
       lat: coords?.$1,
       lng: coords?.$2,
       department: isEmergency
-          ? 'ER Trauma Unit \u2022 Immediate Dispatch'
-          : 'Scheduled Medical Prep',
-      donorsPinged: 3,
-      routeSnippet: 'Fastest Route to Hospital',
+          ? 'Emergency Blood Request'
+          : (title.isNotEmpty ? title : 'Blood Request'),
+      donorsPinged: 0,
+      routeSnippet: '',
       createdAt:
           DateTime.tryParse((m['createdAt'] ?? '').toString())?.toLocal(),
     );
   }
 
-  void simulateAlert({String? city, String? bloodGroup}) {
-    final userCity =
-        (city != null && city.trim().isNotEmpty) ? city.trim() : 'Ghaziabad';
-    final userGroup =
-        (bloodGroup != null && bloodGroup.trim().isNotEmpty)
-            ? bloodGroup.trim()
-            : 'A+';
-    final id = 'sim-${DateTime.now().millisecondsSinceEpoch}';
-    final coords = getCoordinatesForCity(userCity);
-
-    final newAlert = AlertItem(
-      requestId: id,
-      bloodGroup: userGroup,
-      units: 2,
-      hospitalName: 'Emergency Trauma Center in $userCity',
-      city: userCity,
-      urgency: 3,
-      status: 'open',
-      department: 'Critical Care ICU \u2022 Severe Hemorrhage',
-      donorsPinged: 4,
-      routeSnippet: 'Fastest Route via Mainway',
-      lat: coords?.$1 ?? 28.6692,
-      lng: coords?.$2 ?? 77.4538,
-      createdAt: DateTime.now(),
-    );
-
-    alerts = [newAlert, ...alerts];
-    notifyListeners();
-  }
 
   Future<String?> respond(String requestId, bool accept,
       {String? message}) async {

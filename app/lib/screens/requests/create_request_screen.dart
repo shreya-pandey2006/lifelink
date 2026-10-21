@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants.dart';
 import '../../core/theme.dart';
+import '../../core/validators.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/request_provider.dart';
 import '../../services/api_client.dart';
@@ -46,21 +47,43 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
   String? _predictedAiBadge;
 
   Future<void> _runAiPrediction() async {
-    final ageVal = int.tryParse(_patientAge.text.trim());
-    final weightVal =
-        double.tryParse(_patientWeight.text.trim().replaceAll(',', '.'));
-    final hbVal =
-        double.tryParse(_patientHemoglobin.text.trim().replaceAll(',', '.'));
-    final hrsVal = int.tryParse(_patientRequiredHours.text.trim());
-
-    if (ageVal == null ||
-        weightVal == null ||
-        _bloodGroup == null ||
-        _city == null) {
-      _toast(
-          'Please select blood group, city, age, and weight to run AI assessment.');
+    if (_bloodGroup == null) {
+      _toast('Please select a target blood group first.');
       return;
     }
+    if (_city == null || _city!.trim().isEmpty) {
+      _toast('Please specify a city first.');
+      return;
+    }
+
+    final ageErr = Validators.validateAge(_patientAge.text, min: 0, max: 120, fieldName: 'Patient age', required: true);
+    if (ageErr != null) {
+      _toast(ageErr);
+      return;
+    }
+
+    final weightErr = Validators.validateWeight(_patientWeight.text, min: 1, max: 300, fieldName: 'Patient weight', required: true);
+    if (weightErr != null) {
+      _toast(weightErr);
+      return;
+    }
+
+    final hbErr = Validators.validateHemoglobin(_patientHemoglobin.text, min: 1, max: 25, required: false);
+    if (hbErr != null) {
+      _toast(hbErr);
+      return;
+    }
+
+    final hrsErr = Validators.validateRequiredHours(_patientRequiredHours.text, min: 1, max: 168, required: false);
+    if (hrsErr != null) {
+      _toast(hrsErr);
+      return;
+    }
+
+    final ageVal = int.parse(_patientAge.text.trim());
+    final weightVal = double.parse(_patientWeight.text.trim().replaceAll(',', '.'));
+    final hbVal = double.tryParse(_patientHemoglobin.text.trim().replaceAll(',', '.'));
+    final hrsVal = int.tryParse(_patientRequiredHours.text.trim());
 
     setState(() {
       _predictingUrgency = true;
@@ -180,19 +203,14 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
           double.tryParse(_patientHemoglobin.text.trim().replaceAll(',', '.'));
       final hrsVal = int.tryParse(_patientRequiredHours.text.trim());
       patientData = {
-        'age': ageVal ?? 25,
-        'gender': _patientGender,
-        'weightKg': weightVal ?? 60.0,
-        'healthIssue': _patientHealthIssue,
-        'hemoglobinGDl': hbVal ?? 12.0,
-        'requiredWithinHours': hrsVal ?? 24,
+        'age': ?ageVal,
+        if (_patientGender.isNotEmpty) 'gender': _patientGender,
+        'weightKg': ?weightVal,
+        if (_patientHealthIssue.isNotEmpty) 'healthIssue': _patientHealthIssue,
+        'hemoglobinGDl': ?hbVal,
+        'requiredWithinHours': ?hrsVal,
         'activeBleeding': _patientBleeding,
         'previousTransfusions': _patientTransfusions,
-        'plateletCount': 250000,
-        'systolicBp': 120,
-        'heartRate': 80,
-        'spo2Percent': 98,
-        'bloodComponentNeeded': 'Whole Blood',
       };
     }
 
@@ -463,6 +481,9 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
                         keyboardType: TextInputType.number,
                         decoration: fieldDecoration(
                             hint: 'e.g. 34', icon: Icons.cake_outlined),
+                        validator: (v) => _includePatient
+                            ? Validators.validateAge(v, min: 0, max: 120, fieldName: 'Patient age', required: true)
+                            : null,
                       ),
                     ],
                   ),
@@ -480,6 +501,9 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
                         decoration: fieldDecoration(
                             hint: 'e.g. 72.5',
                             icon: Icons.monitor_weight_outlined),
+                        validator: (v) => _includePatient
+                            ? Validators.validateWeight(v, min: 1, max: 300, fieldName: 'Patient weight', required: true)
+                            : null,
                       ),
                     ],
                   ),
@@ -531,6 +555,9 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
                             decimal: true),
                         decoration: fieldDecoration(
                             hint: 'e.g. 9.2', icon: Icons.water_drop_outlined),
+                        validator: (v) => _includePatient
+                            ? Validators.validateHemoglobin(v, min: 1, max: 25, required: false)
+                            : null,
                       ),
                     ],
                   ),
@@ -546,6 +573,9 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
                         keyboardType: TextInputType.number,
                         decoration: fieldDecoration(
                             hint: 'e.g. 4', icon: Icons.timer_outlined),
+                        validator: (v) => _includePatient
+                            ? Validators.validateRequiredHours(v, min: 1, max: 168, required: false)
+                            : null,
                       ),
                     ],
                   ),

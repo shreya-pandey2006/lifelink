@@ -3,7 +3,9 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants.dart';
 import '../../core/theme.dart';
+import '../../core/validators.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/donor_provider.dart';
 import '../../widgets/city_search_field.dart';
 import '../../widgets/ui.dart';
 
@@ -29,6 +31,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _pageController = PageController();
   final _formKeyStep1 = GlobalKey<FormState>();
   final _formKeyStep2 = GlobalKey<FormState>();
+  final _formKeyStep3 = GlobalKey<FormState>();
 
   int _currentStep = 0;
 
@@ -46,7 +49,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   String? _city;
   bool _cityError = false;
 
-  // Step 3: Blood Group & Terms
+  // Step 3: Blood Group, Eligibility & Terms
+  final _donorAge = TextEditingController();
+  final _donorWeight = TextEditingController();
   String? _bloodGroup;
   bool _agreed = false;
   bool _groupError = false;
@@ -69,6 +74,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _phone.dispose();
     _password.dispose();
     _confirm.dispose();
+    _donorAge.dispose();
+    _donorWeight.dispose();
     super.dispose();
   }
 
@@ -111,13 +118,43 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Future<void> _submit() async {
+    final nameErr = Validators.validateName(_name.text);
+    final emailErr = Validators.validateEmail(_email.text);
+    final passErr = Validators.validatePassword(_password.text,
+        minLength: 6, requireMixed: true);
+    final confirmErr =
+        Validators.validateConfirmPassword(_confirm.text, _password.text);
+
+    if (nameErr != null ||
+        emailErr != null ||
+        passErr != null ||
+        confirmErr != null) {
+      _goToStep(0);
+      _formKeyStep1.currentState?.validate();
+      setState(() => _error = emailErr ?? nameErr ?? passErr ?? confirmErr);
+      return;
+    }
+
+    final phoneErr = Validators.validatePhone(_phone.text, countryCode: '+91');
+    final cityOk = _city != null && _city!.trim().isNotEmpty;
+    if (phoneErr != null || !cityOk) {
+      _goToStep(1);
+      _formKeyStep2.currentState?.validate();
+      setState(() {
+        _cityError = !cityOk;
+        _error = phoneErr ?? 'Please select your city';
+      });
+      return;
+    }
+
+    final form3Ok = _formKeyStep3.currentState?.validate() ?? true;
     final needsGroup = _role == 'donor' && _bloodGroup == null;
     setState(() {
       _groupError = needsGroup;
       _termsError = !_agreed;
     });
 
-    if (needsGroup || !_agreed) return;
+    if (needsGroup || !_agreed || !form3Ok) return;
 
     setState(() {
       _loading = true;
@@ -137,6 +174,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
           role: _role,
           bloodGroup: _bloodGroup,
         );
+
+    if (!mounted) return;
+    if (error == null && _role == 'donor') {
+      final a = int.tryParse(_donorAge.text.trim());
+      final w = double.tryParse(_donorWeight.text.trim().replaceAll(',', '.'));
+      if (a != null && w != null) {
+        try {
+          await context.read<DonorProvider>().saveHealth(
+                age: a,
+                weight: w,
+                hemoglobin: 14.0,
+              );
+        } catch (_) {}
+      }
+    }
 
     if (!mounted) return;
     setState(() {
@@ -306,37 +358,31 @@ class _RegisterScreenState extends State<RegisterScreen> {
             const FieldLabel('Full Legal Name'),
             TextFormField(
               controller: _name,
+              autovalidateMode: AutovalidateMode.onUserInteraction,
               decoration: fieldDecoration(
                 hint: 'e.g. Elena Rostova',
                 icon: Icons.person_outline,
               ),
-              validator: (v) {
-                if (v == null || v.trim().isEmpty) return 'Enter your full name';
-                if (v.trim().length < 2) return 'Name must be at least 2 characters';
-                return null;
-              },
+              validator: (v) => Validators.validateName(v),
             ),
             const SizedBox(height: 16),
             const FieldLabel('Email Address'),
             TextFormField(
               controller: _email,
               keyboardType: TextInputType.emailAddress,
+              autovalidateMode: AutovalidateMode.onUserInteraction,
               decoration: fieldDecoration(
                 hint: 'elena.donor@lifelink.org',
                 icon: Icons.mail_outline,
               ),
-              validator: (v) {
-                if (v == null || v.trim().isEmpty) return 'Enter your email address';
-                final regex = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$');
-                if (!regex.hasMatch(v.trim())) return 'Enter a valid email address';
-                return null;
-              },
+              validator: Validators.validateEmail,
             ),
             const SizedBox(height: 16),
             const FieldLabel('Password'),
             TextFormField(
               controller: _password,
               obscureText: _obscure,
+              autovalidateMode: AutovalidateMode.onUserInteraction,
               decoration: fieldDecoration(
                 hint: 'At least 6 characters',
                 icon: Icons.lock_outline,
@@ -350,10 +396,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   onPressed: () => setState(() => _obscure = !_obscure),
                 ),
               ),
-              validator: (v) {
-                if (v == null || v.length < 6) return 'Password must be at least 6 characters';
-                return null;
-              },
+              validator: (v) => Validators.validatePassword(v, minLength: 6, requireMixed: true),
             ),
             const SizedBox(height: 8),
             Row(
@@ -387,6 +430,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             TextFormField(
               controller: _confirm,
               obscureText: _obscureConfirm,
+              autovalidateMode: AutovalidateMode.onUserInteraction,
               decoration: fieldDecoration(
                 hint: 'Re-enter your password',
                 icon: Icons.lock_reset_outlined,
@@ -401,10 +445,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       setState(() => _obscureConfirm = !_obscureConfirm),
                 ),
               ),
-              validator: (v) {
-                if (v != _password.text) return 'Passwords do not match';
-                return null;
-              },
+              validator: (v) => Validators.validateConfirmPassword(v, _password.text),
             ),
             const SizedBox(height: 24),
             PrimaryButton(
@@ -513,17 +554,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
             TextFormField(
               controller: _phone,
               keyboardType: TextInputType.phone,
+              autovalidateMode: AutovalidateMode.onUserInteraction,
               decoration: fieldDecoration(
                 hint: '98765 43210',
                 icon: Icons.phone_outlined,
                 prefixText: '+91  ',
               ),
-              validator: (v) {
-                if (v == null || v.trim().isEmpty) return 'Enter your phone number';
-                final clean = v.replaceAll(RegExp(r'[\s\-()]'), '');
-                if (clean.length < 10) return 'Enter a valid 10-digit phone number';
-                return null;
-              },
+              validator: Validators.validatePhone,
             ),
             const SizedBox(height: 18),
             const FieldLabel('Dispatch Region / City'),
@@ -582,9 +619,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+      child: Form(
+        key: _formKeyStep3,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
           Text(
             isDonor ? 'Select Your Blood Group' : 'Blood Profile (Optional)',
             style: const TextStyle(
@@ -731,6 +770,98 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ],
             ),
           ),
+          if (isDonor) ...[
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: const Color(0xFFEDE7EA)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.monitor_heart_outlined,
+                              color: kPrimaryDark, size: 20),
+                          SizedBox(width: 8),
+                          Text('Donor Eligibility (Optional)',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.w800, color: kInk)),
+                        ],
+                      ),
+                      Pill('18+ YRS • 45+ KG'),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Optionally enter your age and weight to check eligibility (18–100 years, 45+ kg recommended for donation).',
+                    style: TextStyle(fontSize: 12, color: kMuted),
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const FieldLabel('Age (years)'),
+                            TextFormField(
+                              controller: _donorAge,
+                              keyboardType: TextInputType.number,
+                              decoration: fieldDecoration(
+                                hint: 'e.g. 25',
+                                icon: Icons.cake_outlined,
+                              ),
+                              validator: (v) => Validators.validateAge(
+                                v,
+                                min: 18,
+                                max: 100,
+                                fieldName: 'Age',
+                                isDonor: true,
+                                required: false,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const FieldLabel('Weight (kg)'),
+                            TextFormField(
+                              controller: _donorWeight,
+                              keyboardType: const TextInputType.numberWithOptions(
+                                  decimal: true),
+                              decoration: fieldDecoration(
+                                hint: 'e.g. 68.5',
+                                icon: Icons.monitor_weight_outlined,
+                              ),
+                              validator: (v) => Validators.validateWeight(
+                                v,
+                                min: 30,
+                                max: 300,
+                                fieldName: 'Weight',
+                                isDonor: true,
+                                required: false,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 18),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -812,8 +943,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 }
 
 enum _PillState { active, completed, inactive }

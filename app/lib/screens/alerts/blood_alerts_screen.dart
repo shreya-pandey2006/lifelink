@@ -159,27 +159,6 @@ class _BloodAlertsScreenState extends State<BloodAlertsScreen> {
     );
   }
 
-  void _triggerSimulator(AuthProvider auth) {
-    context.read<AlertProvider>().simulateAlert(
-          city: auth.user?.city,
-          bloodGroup: auth.user?.bloodGroup,
-        );
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-      backgroundColor: kPrimaryDark,
-      content: Row(
-        children: [
-          Icon(Icons.radar, color: Colors.white, size: 18),
-          SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              'Simulated Emergency Blood Request dispatched to your radar!',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
-            ),
-          ),
-        ],
-      ),
-    ));
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -624,23 +603,6 @@ class _BloodAlertsScreenState extends State<BloodAlertsScreen> {
             'We monitor emergency dispatch networks in real-time. You\'ll be notified immediately when a match occurs.',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 12, height: 1.35, color: kMuted),
-          ),
-          const SizedBox(height: 14),
-          OutlinedButton(
-            onPressed: () => _triggerSimulator(auth),
-            style: OutlinedButton.styleFrom(
-              backgroundColor: const Color(0xFFF1EEF3),
-              foregroundColor: kInk,
-              side: BorderSide.none,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14)),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-            ),
-            child: const Text(
-              'Test Dispatch Simulator',
-              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
-            ),
           ),
         ],
       ),
