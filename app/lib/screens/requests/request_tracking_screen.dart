@@ -525,7 +525,8 @@ class _ResponderTile extends StatelessWidget {
               CircleAvatar(
                 radius: 22,
                 backgroundColor: kPrimarySoft,
-                child: Text(d.name.isEmpty ? '?' : d.name[0].toUpperCase(),
+                child: Text(
+                    d.name.trim().isEmpty ? 'D' : d.name.trim()[0].toUpperCase(),
                     style: const TextStyle(
                         fontWeight: FontWeight.w800, color: kPrimaryDark)),
               ),

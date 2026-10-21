@@ -21,10 +21,33 @@ class TrackingProvider extends ChangeNotifier {
       final map = asMap(data);
       final requestMap = extractMap(map, ['bloodRequest', 'request']);
       request = BloodRequest.fromJson(requestMap.isNotEmpty ? requestMap : map);
-      final list = (map['responses'] ?? map['responders']) as List? ?? [];
+      final list = (map['responses'] ??
+              map['responders'] ??
+              requestMap['responses'] ??
+              requestMap['responders']) as List? ??
+          [];
       responders = list
           .map((e) => Responder.fromJson(asMap(e)))
           .toList();
+
+      // Ensure unitsAccepted and status on request reflect accepted responders
+      final acceptedCount = responders.where((r) => r.accepted).length;
+      if (request != null) {
+        final effectiveUnitsAccepted = request!.unitsAccepted > acceptedCount
+            ? request!.unitsAccepted
+            : acceptedCount;
+        final effectiveStatus = (effectiveUnitsAccepted >= request!.units &&
+                request!.status == 'open')
+            ? 'matched'
+            : request!.status;
+        if (effectiveUnitsAccepted != request!.unitsAccepted ||
+            effectiveStatus != request!.status) {
+          request = request!.copyWith(
+            unitsAccepted: effectiveUnitsAccepted,
+            status: effectiveStatus,
+          );
+        }
+      }
 
       limited = false;
       error = null;
