@@ -27,6 +27,16 @@ const donorResponseSchema = new mongoose.Schema(
       trim: true,
       maxlength: 300,
       default: ""
+    },
+
+    donated: {
+      type: Boolean,
+      default: false
+    },
+
+    donatedAt: {
+      type: Date,
+      default: null
     }
   },
   { timestamps: true }

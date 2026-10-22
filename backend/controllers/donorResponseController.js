@@ -225,7 +225,94 @@ const getMyResponses = async (req, res) => {
   }
 };
 
+// Donor updates their donation status (donated: true/false)
+const updateDonationStatus = async (req, res) => {
+  try {
+    const { requestId } = req.params;
+    const { donated } = req.body;
+
+    if (!mongoose.isValidObjectId(requestId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid blood request ID"
+      });
+    }
+
+    if (typeof donated !== "boolean") {
+      return res.status(400).json({
+        success: false,
+        message: "Donated field must be a boolean"
+      });
+    }
+
+    const response = await DonorResponse.findOne({
+      bloodRequest: requestId,
+      donor: req.user.id
+    });
+
+    if (!response) {
+      return res.status(404).json({
+        success: false,
+        message: "You have not responded to this blood request"
+      });
+    }
+
+    response.donated = donated;
+    response.donatedAt = donated ? new Date() : null;
+    await response.save();
+
+    // If marked as donated, update donor profile metrics and notify requester
+    if (donated) {
+      try {
+        await Donor.findOneAndUpdate(
+          { user: req.user.id },
+          {
+            $set: { lastDonationDate: new Date() },
+            $inc: { totalDonations: 1 }
+          }
+        );
+      } catch (err) {
+        console.error("Failed to update donor profile metrics:", err.message);
+      }
+
+      try {
+        const bloodRequest = await BloodRequest.findById(requestId);
+        if (bloodRequest) {
+          const donorUser = await User.findById(req.user.id).select("name");
+          const donorName = donorUser?.name || "An accepted donor";
+          await Notification.create({
+            userId: bloodRequest.requester,
+            title: "Donation Completed",
+            message: `${donorName} has confirmed completing their blood donation for your request.`,
+            type: "donation_update",
+            relatedRequest: bloodRequest._id
+          });
+        }
+      } catch (notifErr) {
+        console.error("Failed to notify requester of donation:", notifErr.message);
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: donated
+        ? "Donation status marked as completed. Thank you for saving a life!"
+        : "Donation status updated",
+      donated: response.donated,
+      donatedAt: response.donatedAt,
+      response
+    });
+  } catch (error) {
+    console.error("Update donation status error:", error.message);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update donation status"
+    });
+  }
+};
+
 module.exports = {
   respondToBloodRequest,
-  getMyResponses
+  getMyResponses,
+  updateDonationStatus
 };

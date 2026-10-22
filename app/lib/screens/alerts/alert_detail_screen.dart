@@ -207,7 +207,8 @@ class _AlertDetailScreenState extends State<AlertDetailScreen> {
               ),
               const SizedBox(height: 20),
               PrimaryButton(
-                label: 'Done',
+                label: 'Go to Live Tracking',
+                icon: Icons.navigation_rounded,
                 onPressed: () => Navigator.pop(ctx),
               ),
             ],
@@ -216,10 +217,13 @@ class _AlertDetailScreenState extends State<AlertDetailScreen> {
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Thank you! The requester has been notified.'),
+        backgroundColor: Color(0xFF059669),
+        content: Text('Thank you! Navigating to live tracking...'),
       ));
     }
-    if (mounted) context.pop();
+    if (mounted) {
+      context.pushReplacement('/request/${widget.requestId}');
+    }
   }
 
   @override

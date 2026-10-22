@@ -5,6 +5,8 @@ class Responder {
   final String? bloodGroup;
   final String? city;
   final DateTime? respondedAt;
+  final bool donated;
+  final DateTime? donatedAt;
 
   const Responder({
     required this.name,
@@ -13,6 +15,8 @@ class Responder {
     this.bloodGroup,
     this.city,
     this.respondedAt,
+    this.donated = false,
+    this.donatedAt,
   });
 
   bool get accepted => status == 'accepted';
@@ -42,6 +46,8 @@ class Responder {
       respondedAt: DateTime.tryParse(
               (j['respondedAt'] ?? j['createdAt'] ?? '').toString())
           ?.toLocal(),
+      donated: j['donated'] == true || j['donationStatus'] == 'donated',
+      donatedAt: DateTime.tryParse((j['donatedAt'] ?? '').toString())?.toLocal(),
     );
   }
 }

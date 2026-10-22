@@ -4,7 +4,8 @@ const router = express.Router();
 
 const {
   respondToBloodRequest,
-  getMyResponses
+  getMyResponses,
+  updateDonationStatus
 } = require("../controllers/donorResponseController");
 
 const {
@@ -18,6 +19,14 @@ router.post(
   auth,
   requireRole("donor"),
   respondToBloodRequest
+);
+
+// Donor updates their donation status (donated: true/false)
+router.patch(
+  "/:requestId/donation-status",
+  auth,
+  requireRole("donor"),
+  updateDonationStatus
 );
 
 // Donor views their own responses

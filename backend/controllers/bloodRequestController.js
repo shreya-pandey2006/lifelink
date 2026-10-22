@@ -657,6 +657,8 @@ const getBloodRequestById = async (req, res) => {
         _id: r._id,
         id: r._id,
         status: r.status,
+        donated: Boolean(r.donated),
+        donatedAt: r.donatedAt || null,
         message: r.message,
         name: donorName,
         donorName,
@@ -675,6 +677,16 @@ const getBloodRequestById = async (req, res) => {
       };
     });
 
+    // Find if current requesting user is an accepted donor for this request
+    const myRawResponse = rawResponses.find(
+      (r) => (r.donor?._id?.toString() || r.donor?.toString()) === req.user.id
+    );
+    const myFormatted = myRawResponse
+      ? formattedResponses.find(
+          (fr) => fr._id.toString() === myRawResponse._id.toString()
+        )
+      : null;
+
     // Calculate the maximum matching radius
     const maxRadiusKm = getMaxRadiusKm(
       bloodRequest.urgency || bloodRequest.predictedUrgency
@@ -692,8 +704,8 @@ const getBloodRequestById = async (req, res) => {
       requesterPhone,
       unitsAccepted: acceptedCount,
 
-      // Donors cannot view other donors' response details
-      responses: isDonorViewer ? [] : formattedResponses,
+      // Donors see only their own response (if any) to preserve privacy of other donors
+      responses: isDonorViewer ? (myFormatted ? [myFormatted] : []) : formattedResponses,
 
       maxRadiusKm
     };
@@ -702,7 +714,16 @@ const getBloodRequestById = async (req, res) => {
       success: true,
       bloodRequest: bloodRequestObj,
       request: bloodRequestObj,
-      responses: isDonorViewer ? [] : formattedResponses,
+      responses: isDonorViewer ? (myFormatted ? [myFormatted] : []) : formattedResponses,
+      myResponse: myRawResponse
+        ? {
+            id: myRawResponse._id,
+            status: myRawResponse.status,
+            donated: Boolean(myRawResponse.donated),
+            donatedAt: myRawResponse.donatedAt || null
+          }
+        : null,
+      myDonated: myRawResponse ? Boolean(myRawResponse.donated) : false,
       unitsAccepted: acceptedCount,
       requesterName,
       requesterPhone,

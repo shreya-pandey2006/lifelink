@@ -41,8 +41,10 @@ class TrackingProvider extends ChangeNotifier {
   String? error;
   bool limited = false;
   double? maxRadiusKm;
+  bool? myDonated;
+  bool updatingDonation = false;
 
-  Future<void> load(String id, {bool silent = false}) async {
+  Future<void> load(String id, {bool silent = false, bool isDonor = false}) async {
     if (!silent) {
       loading = true;
       error = null;
@@ -61,6 +63,14 @@ class TrackingProvider extends ChangeNotifier {
       responders = list
           .map((e) => Responder.fromJson(asMap(e)))
           .toList();
+
+      if (map['myDonated'] != null) {
+        myDonated = map['myDonated'] == true;
+      } else if (map['myResponse'] is Map) {
+        myDonated = (map['myResponse'] as Map)['donated'] == true;
+      } else if (responders.any((r) => r.donated)) {
+        myDonated = true;
+      }
 
       // Ensure unitsAccepted and status on request reflect accepted responders
       final acceptedCount = responders.where((r) => r.accepted).length;
@@ -84,8 +94,10 @@ class TrackingProvider extends ChangeNotifier {
       limited = false;
       error = null;
 
-      // Also load available donors filtered by radius
-      await loadAvailableDonors(id);
+      // Only load potential donors if viewer is requester/admin (not donor)
+      if (!isDonor) {
+        await loadAvailableDonors(id);
+      }
     } on ApiException catch (e) {
       if (e.statusCode == 404) {
         await _loadFallback(id);
@@ -97,6 +109,27 @@ class TrackingProvider extends ChangeNotifier {
     }
     loading = false;
     notifyListeners();
+  }
+
+  Future<String?> updateDonationStatus(String id, bool donated) async {
+    updatingDonation = true;
+    myDonated = donated;
+    notifyListeners();
+    try {
+      await ApiClient.instance.patch('/responses/$id/donation-status', {
+        'donated': donated,
+      });
+      await load(id, silent: true, isDonor: true);
+      return null;
+    } on ApiException catch (e) {
+      await load(id, silent: true, isDonor: true);
+      return e.message;
+    } catch (_) {
+      return 'Failed to update donation status.';
+    } finally {
+      updatingDonation = false;
+      notifyListeners();
+    }
   }
 
   Future<void> loadAvailableDonors(String id) async {
@@ -276,6 +309,8 @@ class TrackingProvider extends ChangeNotifier {
     error = null;
     limited = false;
     maxRadiusKm = null;
+    myDonated = null;
+    updatingDonation = false;
     notifyListeners();
   }
 }

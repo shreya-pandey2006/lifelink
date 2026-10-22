@@ -29,6 +29,7 @@ class _RequestTrackingScreenState extends State<RequestTrackingScreen> {
     super.initState();
     Future.microtask(() {
       if (!mounted) return;
+      final isDonor = context.read<AuthProvider>().user?.isDonor ?? false;
       final reqs = context.read<RequestProvider>().requests;
       final match = reqs.where((r) => r.id == widget.requestId);
       final p = context.read<TrackingProvider>();
@@ -37,11 +38,14 @@ class _RequestTrackingScreenState extends State<RequestTrackingScreen> {
       } else {
         p.clear();
       }
-      p.load(widget.requestId);
+      p.load(widget.requestId, isDonor: isDonor);
     });
     _timer = Timer.periodic(const Duration(seconds: 8), (_) {
       if (mounted) {
-        context.read<TrackingProvider>().load(widget.requestId, silent: true);
+        final isDonor = context.read<AuthProvider>().user?.isDonor ?? false;
+        context
+            .read<TrackingProvider>()
+            .load(widget.requestId, silent: true, isDonor: isDonor);
       }
     });
   }
@@ -130,6 +134,8 @@ class _RequestTrackingScreenState extends State<RequestTrackingScreen> {
   }
   @override
   Widget build(BuildContext context) {
+    final user = context.watch<AuthProvider>().user;
+    final isDonor = user?.isDonor ?? false;
     final p = context.watch<TrackingProvider>();
     final r = p.request;
     Widget body;
@@ -141,7 +147,8 @@ class _RequestTrackingScreenState extends State<RequestTrackingScreen> {
                 children: [
                   Text(p.error!, textAlign: TextAlign.center),
                   TextButton(
-                      onPressed: () => p.load(widget.requestId),
+                      onPressed: () =>
+                          p.load(widget.requestId, isDonor: isDonor),
                       child: const Text('Try again')),
                 ],
               ),
@@ -150,13 +157,18 @@ class _RequestTrackingScreenState extends State<RequestTrackingScreen> {
     } else {
       body = RefreshIndicator(
         color: kPrimary,
-        onRefresh: () => p.load(widget.requestId, silent: true),
+        onRefresh: () =>
+            p.load(widget.requestId, silent: true, isDonor: isDonor),
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
           children: [
             _summary(r),
             const SizedBox(height: 14),
+            if (isDonor) ...[
+              _requesterContactCard(r),
+              const SizedBox(height: 14),
+            ],
             HospitalMap(
               lat: r.lat,
               lng: r.lng,
@@ -166,11 +178,15 @@ class _RequestTrackingScreenState extends State<RequestTrackingScreen> {
             const SizedBox(height: 14),
             _progress(r),
             const SizedBox(height: 18),
-            _responders(p),
-            const SizedBox(height: 18),
-            _availableDonors(p, r),
-            const SizedBox(height: 18),
-            ..._actions(r),
+            if (!isDonor) ...[
+              _responders(p),
+              const SizedBox(height: 18),
+              _availableDonors(p, r),
+              const SizedBox(height: 18),
+              ..._actions(r),
+            ] else ...[
+              _donorCompletionStatusCard(p, r),
+            ],
           ],
         ),
       );
@@ -661,6 +677,365 @@ class _RequestTrackingScreenState extends State<RequestTrackingScreen> {
         ),
     ];
   }
+
+  Widget _requesterContactCard(BloodRequest r) {
+    final name = (r.requesterName != null && r.requesterName!.trim().isNotEmpty)
+        ? r.requesterName!.trim()
+        : 'Emergency Blood Requester';
+    final phone = r.requesterPhone?.trim();
+    final hasPhone = phone != null && phone.isNotEmpty;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFEDE7EA)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEE2E2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.phone_in_talk_rounded,
+                    size: 22, color: kPrimaryDark),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Requester Emergency Contact',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: kInk,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      name,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: kMuted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (hasPhone)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFD1FAE5),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.verified, size: 14, color: Color(0xFF059669)),
+                      SizedBox(width: 4),
+                      Text(
+                        'Direct Line',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF059669),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF9F7FA),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFE5E1E6)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.call, size: 20, color: kPrimaryDark),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    hasPhone ? phone : 'Available upon requester response',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: hasPhone ? kInk : kMuted,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                ),
+                if (hasPhone) ...[
+                  IconButton(
+                    tooltip: 'Copy mobile number',
+                    icon: const Icon(Icons.copy_rounded, size: 19),
+                    color: kInk,
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: phone));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Requester phone number copied!'),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.location_on_outlined,
+                  size: 16, color: kPrimaryDark),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  '${r.hospitalName.isNotEmpty ? r.hospitalName : 'Hospital'}, ${r.city.isNotEmpty ? r.city : 'Medical Center'}',
+                  style: const TextStyle(
+                      fontSize: 12.5, fontWeight: FontWeight.w600, color: kInk),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.info_outline_rounded, size: 14, color: kMuted),
+              SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  'You accepted this emergency request. Please contact the requester directly to coordinate hospital admission & donation timing.',
+                  style: TextStyle(fontSize: 11.5, color: kMuted, height: 1.3),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _donorCompletionStatusCard(TrackingProvider p, BloodRequest r) {
+    final bool isDonated = p.myDonated ?? false;
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: isDonated ? const Color(0xFFF0FDF4) : Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: isDonated
+              ? const Color(0xFF86EFAC)
+              : const Color(0xFFEDE7EA),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: isDonated
+                      ? const Color(0xFFDCFCE7)
+                      : const Color(0xFFFEE2E2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  isDonated
+                      ? Icons.check_circle_rounded
+                      : Icons.bloodtype_outlined,
+                  size: 22,
+                  color: isDonated
+                      ? const Color(0xFF16A34A)
+                      : kPrimaryDark,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Donation Completion Status',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: kInk,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      isDonated
+                          ? 'Donation verified & recorded'
+                          : 'Pending hospital transfusion',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isDonated
+                            ? const Color(0xFF16A34A)
+                            : kMuted,
+                        fontWeight: isDonated
+                            ? FontWeight.w700
+                            : FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: isDonated
+                      ? const Color(0xFF16A34A)
+                      : const Color(0xFFFEF3C7),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      isDonated ? Icons.check : Icons.hourglass_top,
+                      size: 13,
+                      color: isDonated ? Colors.white : const Color(0xFFD97706),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      isDonated ? 'DONATED' : 'PENDING',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color:
+                            isDonated ? Colors.white : const Color(0xFFB45309),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          const Divider(height: 1, color: Color(0xFFE5E1E6)),
+          const SizedBox(height: 10),
+          Theme(
+            data: ThemeData(
+              checkboxTheme: CheckboxThemeData(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(5),
+                ),
+              ),
+            ),
+            child: CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              controlAffinity: ListTileControlAffinity.leading,
+              activeColor: const Color(0xFF16A34A),
+              value: isDonated,
+              onChanged: p.updatingDonation
+                  ? null
+                  : (val) async {
+                      final newStatus = val ?? false;
+                      final error =
+                          await p.updateDonationStatus(r.id, newStatus);
+                      if (!mounted) return;
+                      if (error != null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(error)),
+                        );
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            backgroundColor: newStatus
+                                ? const Color(0xFF16A34A)
+                                : kInk,
+                            content: Text(newStatus
+                                ? 'Thank you! Your donation was marked as completed.'
+                                : 'Donation status updated.'),
+                          ),
+                        );
+                      }
+                    },
+              title: const Text(
+                'I have donated blood for this request',
+                style: TextStyle(
+                  fontSize: 14.5,
+                  fontWeight: FontWeight.w800,
+                  color: kInk,
+                ),
+              ),
+              subtitle: Text(
+                isDonated
+                    ? 'Thank you for saving a life! Tap to uncheck if this was marked by mistake.'
+                    : 'Check this box after completing your blood donation at the hospital.',
+                style: const TextStyle(fontSize: 12, color: kMuted),
+              ),
+            ),
+          ),
+          if (isDonated) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFDCFCE7),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.volunteer_activism_rounded,
+                      color: Color(0xFF16A34A), size: 20),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Heroic contribution! Your profile donation count has been incremented.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF14532D),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 }
 
 class _TimelineStep {
@@ -742,15 +1117,20 @@ class _ResponderTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Pill pill;
-    switch (d.status) {
-      case 'accepted':
-        pill = const Pill('ACCEPTED',
-            background: Color(0xFFE3F4E8), foreground: Color(0xFF1E7A3C));
-      case 'declined':
-        pill = const Pill('DECLINED',
-            background: Color(0xFFFEE2E2), foreground: Color(0xFFDC2626));
-      default:
-        pill = const Pill('MATCHED DONOR');
+    if (d.donated) {
+      pill = const Pill('DONATED',
+          background: Color(0xFFDCFCE7), foreground: Color(0xFF16A34A));
+    } else {
+      switch (d.status) {
+        case 'accepted':
+          pill = const Pill('ACCEPTED',
+              background: Color(0xFFE3F4E8), foreground: Color(0xFF1E7A3C));
+        case 'declined':
+          pill = const Pill('DECLINED',
+              background: Color(0xFFFEE2E2), foreground: Color(0xFFDC2626));
+        default:
+          pill = const Pill('MATCHED DONOR');
+      }
     }
     final phone = d.phone;
     final isDeclined = d.status == 'declined';
