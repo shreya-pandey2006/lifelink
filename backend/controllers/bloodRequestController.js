@@ -501,14 +501,17 @@ const getBloodRequests = async (req, res) => {
 
     const { page, limit, skip } = pagination;
 
-    // Admins can see all requests; other users see their own.
+    // Admins can see all requests; donors see open/matched requests; requesters see their own.
     const filter =
       req.user.role === "admin"
         ? {}
-        : { requester: req.user.id };
+        : req.user.role === "donor"
+          ? { status: { $in: ["open", "matched"] } }
+          : { requester: req.user.id };
 
     const [requests, totalRequests] = await Promise.all([
       BloodRequest.find(filter)
+        .populate("requester", "name phone email city")
         .sort({ createdAt: -1, _id: -1 })
         .skip(skip)
         .limit(limit),
@@ -533,6 +536,10 @@ const getBloodRequests = async (req, res) => {
       obj.unitsAccepted = count;
       if (count >= obj.units && obj.status === "open") {
         obj.status = "matched";
+      }
+      if (r.requester && typeof r.requester === "object") {
+        obj.requesterName = r.requester.name || "Blood Requester";
+        obj.requesterPhone = r.requester.phone || null;
       }
       return obj;
     });

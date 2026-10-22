@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../core/format.dart';
 import '../../core/theme.dart';
+import '../../models/alert_item.dart';
 import '../../models/blood_request.dart';
 import '../../providers/alert_provider.dart';
 import '../../providers/donor_provider.dart';
@@ -22,6 +23,8 @@ class AlertDetailScreen extends StatefulWidget {
 
 class _AlertDetailScreenState extends State<AlertDetailScreen> {
   bool _busy = false;
+  bool _loading = true;
+  AlertItem? _alertItem;
   String? _requesterName;
   String? _requesterPhone;
 
@@ -31,6 +34,16 @@ class _AlertDetailScreenState extends State<AlertDetailScreen> {
     Future.microtask(() async {
       if (!mounted) return;
       final alerts = context.read<AlertProvider>();
+      final initialMatches = alerts.alerts.where((a) => a.requestId == widget.requestId);
+      if (initialMatches.isNotEmpty) {
+        final match = initialMatches.first;
+        setState(() {
+          _alertItem = match;
+          _requesterName = match.requesterName;
+          _requesterPhone = match.requesterPhone;
+          _loading = false;
+        });
+      }
       if (alerts.alerts.isEmpty) alerts.load();
       final donor = context.read<DonorProvider>();
       if (!donor.loaded) donor.load();
@@ -40,14 +53,54 @@ class _AlertDetailScreenState extends State<AlertDetailScreen> {
         final data = await ApiClient.instance.get('/requests/${widget.requestId}');
         final map = asMap(data);
         final reqMap = extractMap(map, ['bloodRequest', 'request']);
-        final r = BloodRequest.fromJson(reqMap.isNotEmpty ? reqMap : map);
+        final payload = reqMap.isNotEmpty ? reqMap : map;
+        final r = BloodRequest.fromJson(payload);
+        final isAvailable = r.status == 'open' || r.status == 'matched';
+
+        if (mounted) {
+          if (isAvailable && r.id.isNotEmpty) {
+            final item = AlertItem(
+              requestId: r.id,
+              bloodGroup: r.bloodGroup.isNotEmpty ? r.bloodGroup : 'O+',
+              units: r.units > 0 ? r.units : 1,
+              hospitalName: r.hospitalName,
+              city: r.city,
+              urgency: r.urgency,
+              status: r.status,
+              lat: r.lat,
+              lng: r.lng,
+              createdAt: r.createdAt,
+              department: (r.patient?['healthIssue'] != null &&
+                      r.patient!['healthIssue'].toString().trim().isNotEmpty)
+                  ? r.patient!['healthIssue'].toString().trim()
+                  : (r.urgency == 3
+                      ? 'Emergency Blood Request'
+                      : 'Blood Request'),
+              donorsPinged: 0,
+              routeSnippet: '',
+              requesterName: r.requesterName,
+              requesterPhone: r.requesterPhone,
+            );
+            setState(() {
+              _alertItem = item;
+              _requesterName = r.requesterName ?? _requesterName;
+              _requesterPhone = r.requesterPhone ?? _requesterPhone;
+              _loading = false;
+            });
+          } else {
+            setState(() {
+              _alertItem = null;
+              _loading = false;
+            });
+          }
+        }
+      } catch (_) {
         if (mounted) {
           setState(() {
-            _requesterName = r.requesterName;
-            _requesterPhone = r.requesterPhone;
+            _loading = false;
           });
         }
-      } catch (_) {}
+      }
     });
   }
 
@@ -174,9 +227,10 @@ class _AlertDetailScreenState extends State<AlertDetailScreen> {
     final alerts = context.watch<AlertProvider>();
     final donor = context.watch<DonorProvider>();
     final matches = alerts.alerts.where((a) => a.requestId == widget.requestId);
+    final a = _alertItem ?? (matches.isNotEmpty ? matches.first : null);
     Widget body;
-    if (matches.isEmpty) {
-      body = alerts.loading
+    if (a == null) {
+      body = (_loading || alerts.loading)
           ? const Center(child: CircularProgressIndicator(color: kPrimary))
           : Center(
               child: Padding(
@@ -203,7 +257,6 @@ class _AlertDetailScreenState extends State<AlertDetailScreen> {
               ),
             );
     } else {
-      final a = matches.first;
       final km = (donor.hasLocation && a.lat != null && a.lng != null)
           ? LocationService.distanceKm(
               donor.lat!, donor.lng!, a.lat!, a.lng!)

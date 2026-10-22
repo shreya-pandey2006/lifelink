@@ -19,11 +19,11 @@ router.post(
   createBloodRequest
 );
 
-// View all blood requests
+// View all blood requests (accessible to requesters, admins, and donors)
 router.get(
   "/",
   auth,
-  requireRole("requester", "admin"),
+  requireRole("requester", "admin", "donor"),
   getBloodRequests
 );
 
