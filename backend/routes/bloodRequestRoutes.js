@@ -51,4 +51,12 @@ router.patch(
   cancelBloodRequest
 );
 
+// Get one blood request by ID (accessible to requesters, admins, and matching donors)
+router.get(
+  "/:requestId",
+  auth,
+  requireRole("requester", "admin", "donor"),
+  getBloodRequestById
+);
+
 module.exports = router;

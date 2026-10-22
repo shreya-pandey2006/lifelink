@@ -56,4 +56,18 @@ router.get(
   getAvailableDonorCount
 );
 
+router.put(
+  "/me",
+  auth,
+  requireRole("donor"),
+  updateDonorProfile
+);
+
+router.patch(
+  "/me",
+  auth,
+  requireRole("donor"),
+  updateDonorProfile
+);
+
 module.exports = router;

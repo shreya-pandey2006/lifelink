@@ -1,4 +1,7 @@
-const BLOOD_GROUP_COMPATIBILITY = {
+// services/donorMatchingService.js
+// Blood-group compatibility, city coordinates, distance, and urgency helpers.
+
+const BLOOD_GROUP_COMPATIBILITY = Object.freeze({
   "A+": ["A+", "A-", "O+", "O-"],
   "A-": ["A-", "O-"],
   "B+": ["B+", "B-", "O+", "O-"],
@@ -7,12 +10,40 @@ const BLOOD_GROUP_COMPATIBILITY = {
   "AB-": ["A-", "B-", "AB-", "O-"],
   "O+": ["O+", "O-"],
   "O-": ["O-"]
+});
+
+const VALID_BLOOD_GROUPS = Object.freeze(
+  Object.keys(BLOOD_GROUP_COMPATIBILITY)
+);
+
+// Normalize and validate a blood group.
+const normalizeBloodGroup = (bloodGroup) => {
+  if (typeof bloodGroup !== "string") return null;
+
+  const normalized = bloodGroup.trim().toUpperCase().replace(/\s+/g, "");
+  return VALID_BLOOD_GROUPS.includes(normalized) ? normalized : null;
 };
 
+// Returns blood groups that can donate red blood cells to the requested group.
 const getCompatibleBloodGroups = (requestedBloodGroup) => {
-  return BLOOD_GROUP_COMPATIBILITY[requestedBloodGroup] || [];
+  const normalized = normalizeBloodGroup(requestedBloodGroup);
+
+  if (!normalized) return [];
+
+  return [...BLOOD_GROUP_COMPATIBILITY[normalized]];
 };
 
+// Check whether a donor's blood group is compatible with the requested group.
+const isBloodGroupCompatible = (donorBloodGroup, requestedBloodGroup) => {
+  const donorGroup = normalizeBloodGroup(donorBloodGroup);
+  const requestedGroup = normalizeBloodGroup(requestedBloodGroup);
+
+  if (!donorGroup || !requestedGroup) return false;
+
+  return BLOOD_GROUP_COMPATIBILITY[requestedGroup].includes(donorGroup);
+};
+
+// Approximate city-center coordinates.
 const CITY_COORDINATES = {
   ghaziabad: { lat: 28.6692, lng: 77.4538 },
   noida: { lat: 28.5355, lng: 77.3910 },
@@ -71,94 +102,153 @@ const CITY_COORDINATES = {
   shillong: { lat: 25.5788, lng: 91.8933 },
   shimla: { lat: 31.1048, lng: 77.1734 },
   jammu: { lat: 32.7266, lng: 74.8570 },
-  srinagar: { lat: 34.0837, lng: 74.7973 },
+  srinagar: { lat: 34.0837, lng: 74.7978 },
   goa: { lat: 15.2993, lng: 74.1240 },
   panaji: { lat: 15.4909, lng: 73.8278 }
 };
 
+// Get coordinates for a known city.
 const getCoordinatesForCity = (city) => {
-  if (!city || typeof city !== "string") return null;
-  const key = city.trim().toLowerCase();
-  return CITY_COORDINATES[key] || null;
+  if (typeof city !== "string" || !city.trim()) return null;
+
+  const key = city.trim().toLowerCase().replace(/\s+/g, " ");
+  const coordinates = CITY_COORDINATES[key];
+
+  return coordinates
+    ? { lat: coordinates.lat, lng: coordinates.lng }
+    : null;
 };
 
-// Calculate Haversine distance in kilometers
+// Validate a latitude/longitude pair.
+const isValidCoordinatePair = (lat, lng) => {
+  if (
+    lat === undefined ||
+    lat === null ||
+    lng === undefined ||
+    lng === null
+  ) {
+    return false;
+  }
+
+  if (
+    (typeof lat === "string" && !lat.trim()) ||
+    (typeof lng === "string" && !lng.trim())
+  ) {
+    return false;
+  }
+
+  const latitude = Number(lat);
+  const longitude = Number(lng);
+
+  return (
+    Number.isFinite(latitude) &&
+    Number.isFinite(longitude) &&
+    latitude >= -90 &&
+    latitude <= 90 &&
+    longitude >= -180 &&
+    longitude <= 180
+  );
+};
+
+// Calculate the great-circle distance between two points in kilometers.
 const calculateDistanceKm = (lat1, lng1, lat2, lng2) => {
   if (
-    lat1 === undefined || lat1 === null ||
-    lng1 === undefined || lng1 === null ||
-    lat2 === undefined || lat2 === null ||
-    lng2 === undefined || lng2 === null
-  ) {
-    return null;
-  }
-  const nLat1 = Number(lat1);
-  const nLng1 = Number(lng1);
-  const nLat2 = Number(lat2);
-  const nLng2 = Number(lng2);
-
-  if (
-    !Number.isFinite(nLat1) ||
-    !Number.isFinite(nLng1) ||
-    !Number.isFinite(nLat2) ||
-    !Number.isFinite(nLng2)
+    !isValidCoordinatePair(lat1, lng1) ||
+    !isValidCoordinatePair(lat2, lng2)
   ) {
     return null;
   }
 
-  const R = 6371.0; // Earth radius in km
-  const toRad = (deg) => (deg * Math.PI) / 180.0;
-  const dLat = toRad(nLat2 - nLat1);
-  const dLng = toRad(nLng2 - nLng1);
+  const latitude1 = Number(lat1);
+  const longitude1 = Number(lng1);
+  const latitude2 = Number(lat2);
+  const longitude2 = Number(lng2);
+
+  const toRadians = (degrees) => (degrees * Math.PI) / 180;
+
+  const dLat = toRadians(latitude2 - latitude1);
+  const dLng = toRadians(longitude2 - longitude1);
 
   const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(nLat1)) *
-      Math.cos(toRad(nLat2)) *
-      Math.sin(dLng / 2) *
-      Math.sin(dLng / 2);
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRadians(latitude1)) *
+      Math.cos(toRadians(latitude2)) *
+      Math.sin(dLng / 2) ** 2;
 
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
+  // Protect against floating-point rounding errors.
+  const safeA = Math.min(1, Math.max(0, a));
+
+  const centralAngle =
+    2 * Math.atan2(Math.sqrt(safeA), Math.sqrt(1 - safeA));
+
+  return 6371 * centralAngle;
 };
 
-// Urgency rules:
-// Normal: donors within 20 km radius
-// Urgent: donors within 10 km radius
-// Critical: donors within 5 km radius
+// Radius rules:
+// Normal = 20 km, urgent = 10 km, critical = 5 km.
 const getMaxRadiusKm = (urgency) => {
-  const norm = String(urgency || "").trim().toLowerCase();
-  if (norm === "critical" || norm === "emergency" || norm === "3") {
-    return 5.0;
-  }
-  if (norm === "urgent" || norm === "high" || norm === "medium" || norm === "2") {
-    return 10.0;
-  }
-  return 20.0; // normal / low / default
+  const normalized = String(urgency ?? "").trim().toLowerCase();
+
+  if (["critical", "emergency", "3"].includes(normalized)) return 5;
+
+  if (["urgent", "high", "medium", "2"].includes(normalized)) return 10;
+
+  if (["normal", "low", "1", ""].includes(normalized)) return 20;
+
+  return 20;
 };
 
+// Resolve coordinates from direct fields, nested user fields, or city.
 const getEffectiveCoordinates = (item) => {
-  if (!item) return null;
-  let lat = item.lat ?? item.latitude;
-  let lng = item.lng ?? item.longitude;
+  if (!item || typeof item !== "object") return null;
 
-  if (lat !== undefined && lat !== null && lng !== undefined && lng !== null) {
-    const nLat = Number(lat);
-    const nLng = Number(lng);
-    if (Number.isFinite(nLat) && Number.isFinite(nLng)) {
-      return { lat: nLat, lng: nLng };
+  const candidates = [
+    { lat: item.lat, lng: item.lng },
+    { lat: item.latitude, lng: item.longitude },
+    { lat: item.user?.lat, lng: item.user?.lng },
+    { lat: item.user?.latitude, lng: item.user?.longitude }
+  ];
+
+  for (const candidate of candidates) {
+    if (isValidCoordinatePair(candidate.lat, candidate.lng)) {
+      return {
+        lat: Number(candidate.lat),
+        lng: Number(candidate.lng)
+      };
     }
   }
 
-  const city = item.city || item.user?.city;
+  const city = item.city ?? item.user?.city;
+
   return getCoordinatesForCity(city);
 };
 
+// Calculate distance between a donor and a blood request.
+const getDistanceBetweenItemsKm = (firstItem, secondItem) => {
+  const first = getEffectiveCoordinates(firstItem);
+  const second = getEffectiveCoordinates(secondItem);
+
+  if (!first || !second) return null;
+
+  return calculateDistanceKm(
+    first.lat,
+    first.lng,
+    second.lat,
+    second.lng
+  );
+};
+
 module.exports = {
-  getCompatibleBloodGroups,
+  BLOOD_GROUP_COMPATIBILITY,
+  VALID_BLOOD_GROUPS,
   CITY_COORDINATES,
+  normalizeBloodGroup,
+  getCompatibleBloodGroups,
+  isBloodGroupCompatible,
   getCoordinatesForCity,
+  isValidCoordinatePair,
   calculateDistanceKm,
   getMaxRadiusKm,
-  getEffectiveCoordinates
+  getEffectiveCoordinates,
+  getDistanceBetweenItemsKm
 };

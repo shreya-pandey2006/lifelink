@@ -74,7 +74,16 @@ const donorSchema = new mongoose.Schema(
     totalAccepts: {
       type: Number,
       default: 0
-    }
+    },
+    lat: {
+      type: Number,
+      default: null
+    },
+
+    lng: {
+      type: Number,
+      default: null
+    },
   },
   { timestamps: true }
 );

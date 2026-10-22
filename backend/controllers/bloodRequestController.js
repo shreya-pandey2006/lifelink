@@ -564,6 +564,7 @@ const getBloodRequests = async (req, res) => {
   }
 };
 
+
 /* GET A SINGLE BLOOD REQUEST BY ID */
 const getBloodRequestById = async (req, res) => {
   try {
@@ -577,8 +578,11 @@ const getBloodRequestById = async (req, res) => {
       });
     }
 
-    // Find the blood request
-    const bloodRequest = await BloodRequest.findById(requestId);
+    // Find the blood request and populate requester details
+    const bloodRequest = await BloodRequest.findById(requestId).populate(
+      "requester",
+      "name phone email city"
+    );
 
     if (!bloodRequest) {
       return res.status(404).json({
@@ -587,59 +591,75 @@ const getBloodRequestById = async (req, res) => {
       });
     }
 
-    // Requesters can access only their own requests.
-    // Admins can access all requests.
-    if (
-      req.user.role !== "admin" &&
-      bloodRequest.requester.toString() !== req.user.id
-    ) {
+    // Identify the requester and determine ownership
+    const requesterId = bloodRequest.requester?._id
+      ? bloodRequest.requester._id.toString()
+      : bloodRequest.requester?.toString();
+
+    const isOwner = requesterId === req.user.id;
+    const isAdmin = req.user.role === "admin";
+    const isDonorViewer = req.user.role === "donor" && !isOwner;
+
+    // Allow admins, donors, and the owner to access the request
+    if (!isAdmin && !isDonorViewer && !isOwner) {
       return res.status(403).json({
         success: false,
         message: "You do not have permission to access this blood request"
       });
     }
 
-    // Fetch all donor responses for this blood request
-    const rawResponses = await DonorResponse.find({ bloodRequest: requestId })
+    // Fetch donor responses for this blood request
+    const rawResponses = await DonorResponse.find({
+      bloodRequest: requestId
+    })
       .populate("donor", "name phone email city")
       .sort({ createdAt: -1 });
 
+    // Count accepted donor responses
     const acceptedCount = rawResponses.filter(
       (r) => r.status === "accepted"
     ).length;
 
-    // Synchronize unitsAccepted and status on the blood request document if needed
+    // Synchronize accepted units and request status
     let needsSave = false;
+
     if (bloodRequest.unitsAccepted !== acceptedCount) {
       bloodRequest.unitsAccepted = acceptedCount;
       needsSave = true;
     }
-    if (acceptedCount >= bloodRequest.units && bloodRequest.status === "open") {
+
+    if (
+      acceptedCount >= bloodRequest.units &&
+      bloodRequest.status === "open"
+    ) {
       bloodRequest.status = "matched";
       needsSave = true;
     }
+
     if (needsSave) {
       await bloodRequest.save();
     }
 
+    // Format donor responses and protect unaccepted donors' contact details
     const formattedResponses = rawResponses.map((r) => {
       const donorUser = r.donor || {};
       const donorName = donorUser.name || "Donor";
       const isAccepted = r.status === "accepted";
+
       return {
         _id: r._id,
         id: r._id,
         status: r.status,
         message: r.message,
         name: donorName,
-        donorName: donorName,
+        donorName,
         phone: isAccepted ? donorUser.phone : null,
         email: isAccepted ? donorUser.email : null,
         city: donorUser.city || null,
         respondedAt: r.createdAt,
         createdAt: r.createdAt,
         donor: {
-          id: donorUser._id,
+          id: donorUser._id || null,
           name: donorName,
           phone: isAccepted ? donorUser.phone : null,
           email: isAccepted ? donorUser.email : null,
@@ -648,14 +668,26 @@ const getBloodRequestById = async (req, res) => {
       };
     });
 
+    // Calculate the maximum matching radius
     const maxRadiusKm = getMaxRadiusKm(
       bloodRequest.urgency || bloodRequest.predictedUrgency
     );
 
+    // Get populated requester details
+    const requesterUser = bloodRequest.requester || {};
+    const requesterName = requesterUser.name || "Blood Requester";
+    const requesterPhone = requesterUser.phone || null;
+
+    // Build the response object
     const bloodRequestObj = {
       ...bloodRequest.toObject(),
+      requesterName,
+      requesterPhone,
       unitsAccepted: acceptedCount,
-      responses: formattedResponses,
+
+      // Donors cannot view other donors' response details
+      responses: isDonorViewer ? [] : formattedResponses,
+
       maxRadiusKm
     };
 
@@ -663,12 +695,17 @@ const getBloodRequestById = async (req, res) => {
       success: true,
       bloodRequest: bloodRequestObj,
       request: bloodRequestObj,
-      responses: formattedResponses,
+      responses: isDonorViewer ? [] : formattedResponses,
       unitsAccepted: acceptedCount,
+      requesterName,
+      requesterPhone,
       maxRadiusKm
     });
   } catch (error) {
-    console.error("Get blood request by ID error:", error.message);
+    console.error(
+      "Get blood request by ID error:",
+      error.message
+    );
 
     return res.status(500).json({
       success: false,

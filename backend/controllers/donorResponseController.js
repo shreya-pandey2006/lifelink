@@ -10,6 +10,7 @@ const respondToBloodRequest = async (req, res) => {
   try {
     const { requestId } = req.params;
     const { status, message = "" } = req.body;
+
     if (!mongoose.isValidObjectId(requestId)) {
       return res.status(400).json({
         success: false,
@@ -27,14 +28,21 @@ const respondToBloodRequest = async (req, res) => {
       });
     }
 
-    if ( typeof status !== "string" || !["accepted", "declined"].includes(status)) {
+    if (
+      typeof status !== "string" ||
+      !["accepted", "declined"].includes(status)
+    ) {
       return res.status(400).json({
         success: false,
         message: "Status must be accepted or declined"
       });
     }
 
-    const bloodRequest = await BloodRequest.findById(requestId);
+    // Populate requester details
+    const bloodRequest = await BloodRequest.findById(requestId).populate(
+      "requester",
+      "name phone email city"
+    );
 
     if (!bloodRequest) {
       return res.status(404).json({
@@ -57,7 +65,10 @@ const respondToBloodRequest = async (req, res) => {
         $in: require("../services/donorMatchingService")
           .getCompatibleBloodGroups(bloodRequest.bloodGroup)
       },
-      city: { $regex: `^${bloodRequest.city.trim()}$`, $options: "i" }
+      city: {
+        $regex: `^${bloodRequest.city.trim()}$`,
+        $options: "i"
+      }
     });
 
     if (!donorProfile) {
@@ -81,34 +92,55 @@ const respondToBloodRequest = async (req, res) => {
     });
 
     bloodRequest.unitsAccepted = acceptedCount;
-    if (acceptedCount >= bloodRequest.units && bloodRequest.status === "open") {
+
+    if (
+      acceptedCount >= bloodRequest.units &&
+      bloodRequest.status === "open"
+    ) {
       bloodRequest.status = "matched";
     }
+
     await bloodRequest.save();
 
     // Create notification for requester
     try {
-      const donorUser = await User.findById(req.user.id).select("name phone");
+      const donorUser = await User.findById(req.user.id).select(
+        "name phone"
+      );
+
       const donorName = donorUser?.name || "A donor";
+
       await Notification.create({
-        userId: bloodRequest.requester,
-        title: status === "accepted" ? "Donor Accepted Your Request" : "Donor Response Update",
-        message: status === "accepted"
-          ? `${donorName} has accepted your blood request for ${bloodRequest.bloodGroup} in ${bloodRequest.city}.`
-          : `A donor has declined your blood request for ${bloodRequest.bloodGroup}.`,
+        userId: bloodRequest.requester?._id || bloodRequest.requester,
+        title:
+          status === "accepted"
+            ? "Donor Accepted Your Request"
+            : "Donor Response Update",
+        message:
+          status === "accepted"
+            ? `${donorName} has accepted your blood request for ${bloodRequest.bloodGroup} in ${bloodRequest.city}.`
+            : `A donor has declined your blood request for ${bloodRequest.bloodGroup}.`,
         type: "request_update",
         relatedRequest: bloodRequest._id
       });
     } catch (notifErr) {
-      console.error("Failed to notify requester:", notifErr.message);
+      console.error(
+        "Failed to notify requester:",
+        notifErr.message
+      );
     }
+
+    // Return requester contact details to the donor
+    const requesterUser = bloodRequest.requester || {};
 
     return res.status(201).json({
       success: true,
       message: "Your response has been saved",
       response,
       unitsAccepted: acceptedCount,
-      requestStatus: bloodRequest.status
+      requestStatus: bloodRequest.status,
+      requesterPhone: requesterUser.phone || null,
+      requesterName: requesterUser.name || null
     });
   } catch (error) {
     if (error.code === 11000) {
@@ -159,13 +191,19 @@ const getMyResponses = async (req, res) => {
 
     const [responses, total] = await Promise.all([
       DonorResponse.find(filter)
-        .populate(
-          "bloodRequest",
-          "bloodGroup city units urgency status createdAt"
-        )
+        .populate({
+          path: "bloodRequest",
+          select:
+            "bloodGroup city units urgency status createdAt hospital hospitalName patient requester",
+          populate: {
+            path: "requester",
+            select: "name phone email city"
+          }
+        })
         .sort({ createdAt: -1, _id: -1 })
         .skip(skip)
         .limit(limit),
+
       DonorResponse.countDocuments(filter)
     ]);
 
