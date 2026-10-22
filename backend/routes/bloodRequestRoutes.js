@@ -27,11 +27,11 @@ router.get(
   getBloodRequests
 );
 
-// Get one blood request by ID
+// Get one blood request by ID (accessible to requesters, admins, and matching donors)
 router.get(
   "/:requestId",
   auth,
-  requireRole("requester", "admin"),
+  requireRole("requester", "admin", "donor"),
   getBloodRequestById
 );
 
@@ -49,14 +49,6 @@ router.patch(
   auth,
   requireRole("requester"),
   cancelBloodRequest
-);
-
-// Get one blood request by ID (accessible to requesters, admins, and matching donors)
-router.get(
-  "/:requestId",
-  auth,
-  requireRole("requester", "admin", "donor"),
-  getBloodRequestById
 );
 
 module.exports = router;

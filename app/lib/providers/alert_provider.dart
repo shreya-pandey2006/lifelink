@@ -73,6 +73,8 @@ class AlertProvider extends ChangeNotifier {
                       : 'Blood Request'),
               donorsPinged: 0,
               routeSnippet: '',
+              requesterName: req.requesterName,
+              requesterPhone: req.requesterPhone,
             );
           }
         }

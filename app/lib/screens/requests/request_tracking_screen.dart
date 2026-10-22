@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../../core/format.dart';
 import '../../core/theme.dart';
 import '../../models/blood_request.dart';
+import '../../models/potential_donor.dart';
 import '../../models/responder.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/request_provider.dart';
@@ -62,6 +63,35 @@ class _RequestTrackingScreenState extends State<RequestTrackingScreen> {
               : 'Request cancelled.')),
     ));
   }
+
+  Future<void> _confirmFulfill() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Mark Transfusion as Fulfilled?'),
+        content: const Text(
+          'Have you successfully received the required blood units from the donor? This will finalize the request as fulfilled.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Not yet'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF16A34A),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Yes, Transfusion Fulfilled'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    if (!mounted) return;
+    await _changeStatus('fulfilled');
+  }
+
   Future<void> _confirmCancel() async {
     final ok = await showDialog<bool>(
       context: context,
@@ -137,6 +167,8 @@ class _RequestTrackingScreenState extends State<RequestTrackingScreen> {
             _progress(r),
             const SizedBox(height: 18),
             _responders(p),
+            const SizedBox(height: 18),
+            _availableDonors(p, r),
             const SizedBox(height: 18),
             ..._actions(r),
           ],
@@ -379,6 +411,128 @@ class _RequestTrackingScreenState extends State<RequestTrackingScreen> {
     );
   }
 
+  Widget _availableDonors(TrackingProvider p, BloodRequest r) {
+    final radius = p.maxRadiusKm ?? maxRadiusKmForUrgency(r.urgency);
+    final radiusStr = radius.toStringAsFixed(0);
+
+    final Pill urgencyRadiusPill;
+    final String radiusSubtitle;
+    switch (r.urgency) {
+      case 3:
+        urgencyRadiusPill = const Pill(
+          '≤ 5 km radius',
+          background: Color(0xFFFEE2E2),
+          foreground: Color(0xFFDC2626),
+        );
+        radiusSubtitle =
+            'Critical emergency: Showing available donors within 5 km radius.';
+        break;
+      case 2:
+        urgencyRadiusPill = const Pill(
+          '≤ 10 km radius',
+          background: Color(0xFFFEF3C7),
+          foreground: Color(0xFFD97706),
+        );
+        radiusSubtitle =
+            'Urgent status: Showing available donors within 10 km radius.';
+        break;
+      case 1:
+      default:
+        urgencyRadiusPill = const Pill(
+          '≤ 20 km radius',
+          background: Color(0xFFE0F2FE),
+          foreground: Color(0xFF0369A1),
+        );
+        radiusSubtitle =
+            'Normal urgency: Showing available donors within 20 km radius.';
+        break;
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Text(
+              'Available Donors',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: kInk,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Pill('${p.availableDonors.length}'),
+            const Spacer(),
+            urgencyRadiusPill,
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          radiusSubtitle,
+          style: const TextStyle(fontSize: 12, color: kMuted),
+        ),
+        const SizedBox(height: 12),
+        if (p.loadingAvailableDonors && p.availableDonors.isEmpty)
+          const Center(
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child: CircularProgressIndicator(color: kPrimary),
+            ),
+          )
+        else if (p.availableDonors.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF9F8FA),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFE9E5EC)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEDE7EA),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child:
+                      const Icon(Icons.radar_outlined, color: kMuted, size: 24),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'No available donors within $radiusStr km',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          color: kInk,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        'Only compatible donors within $radiusStr km of ${r.hospitalName.isNotEmpty ? r.hospitalName : (r.city.isNotEmpty ? r.city : 'the location')} are displayed. Donors across distant regions are excluded.',
+                        style: const TextStyle(
+                            fontSize: 12, color: kMuted, height: 1.3),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          )
+        else
+          for (final d in p.availableDonors) ...[
+            _AvailableDonorTile(d: d, request: r),
+            const SizedBox(height: 10),
+          ],
+      ],
+    );
+  }
+
   List<Widget> _actions(BloodRequest r) {
     final user = context.read<AuthProvider>().user;
     final isCancellable = r.status == 'open' || r.status == 'matched';
@@ -387,18 +541,102 @@ class _RequestTrackingScreenState extends State<RequestTrackingScreen> {
             r.requesterId!.isEmpty ||
             r.requesterId == user.id);
     final canCancel = isCancellable && (isOwner || user?.isAdmin == true);
-    final canFulfill = user?.isAdmin == true && r.status == 'matched';
-
-    if (!canCancel && !canFulfill) return const [];
+    final canFulfill =
+        (isOwner || user?.isAdmin == true) && r.status == 'matched';
 
     return [
       if (canFulfill) ...[
-        PrimaryButton(
-          label: 'Mark as Fulfilled',
-          icon: Icons.check_circle_outline,
-          onPressed: () => _changeStatus('fulfilled'),
+        Container(
+          margin: const EdgeInsets.only(bottom: 14),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF0FDF4),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFF86EFAC)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: const [
+                  Icon(Icons.check_circle_outline,
+                      color: Color(0xFF16A34A), size: 22),
+                  SizedBox(width: 8),
+                  Text(
+                    'Received the Required Blood?',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF14532D),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'After receiving the blood units from the donor, confirm below to finalize this request as fulfilled.',
+                style: TextStyle(fontSize: 13, color: Color(0xFF166534)),
+              ),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF16A34A),
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size.fromHeight(46),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onPressed: _confirmFulfill,
+                icon: const Icon(Icons.done_all_rounded, size: 20),
+                label: const Text(
+                  'Mark Transfusion as Fulfilled',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 15,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
-        const SizedBox(height: 12),
+      ],
+      if (r.status == 'fulfilled') ...[
+        Container(
+          margin: const EdgeInsets.only(bottom: 14),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF0FDF4),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFF86EFAC)),
+          ),
+          child: Row(
+            children: const [
+              Icon(Icons.verified, color: Color(0xFF16A34A), size: 28),
+              SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Blood Transfusion Fulfilled',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF14532D),
+                      ),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      'The donation and transfusion have been successfully completed.',
+                      style: TextStyle(fontSize: 12, color: Color(0xFF166534)),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ],
       if (canCancel)
         OutlinedButton.icon(
@@ -510,11 +748,12 @@ class _ResponderTile extends StatelessWidget {
             background: Color(0xFFE3F4E8), foreground: Color(0xFF1E7A3C));
       case 'declined':
         pill = const Pill('DECLINED',
-            background: Color(0xFFEFEBF0), foreground: kMuted);
+            background: Color(0xFFFEE2E2), foreground: Color(0xFFDC2626));
       default:
         pill = const Pill('MATCHED DONOR');
     }
     final phone = d.phone;
+    final isDeclined = d.status == 'declined';
 
     return AppCard(
       padding: const EdgeInsets.all(14),
@@ -524,11 +763,16 @@ class _ResponderTile extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: 22,
-                backgroundColor: kPrimarySoft,
+                backgroundColor: isDeclined
+                    ? const Color(0xFFFEE2E2)
+                    : kPrimarySoft,
                 child: Text(
                     d.name.trim().isEmpty ? 'D' : d.name.trim()[0].toUpperCase(),
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w800, color: kPrimaryDark)),
+                    style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        color: isDeclined
+                            ? const Color(0xFFDC2626)
+                            : kPrimaryDark)),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -549,10 +793,26 @@ class _ResponderTile extends StatelessWidget {
               pill,
             ],
           ),
-          if (d.accepted && phone != null) ...[
+          if (d.bloodGroup != null || d.city != null) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                if (d.bloodGroup != null && d.bloodGroup!.trim().isNotEmpty) ...[
+                  Pill(d.bloodGroup!.trim()),
+                  const SizedBox(width: 6),
+                ],
+                if (d.city != null && d.city!.trim().isNotEmpty)
+                  Text(
+                    d.city!.trim(),
+                    style: const TextStyle(fontSize: 12, color: kMuted),
+                  ),
+              ],
+            ),
+          ],
+          if (d.accepted) ...[
             const SizedBox(height: 10),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
                   color: const Color(0xFFF4F1F6),
                   borderRadius: BorderRadius.circular(12)),
@@ -561,17 +821,50 @@ class _ResponderTile extends StatelessWidget {
                   const Icon(Icons.phone_outlined, size: 18, color: kPrimaryDark),
                   const SizedBox(width: 8),
                   Expanded(
-                      child: Text(phone,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w700, color: kInk))),
-                  IconButton(
-                    tooltip: 'Copy number',
-                    icon: const Icon(Icons.copy, size: 18),
-                    onPressed: () {
-                      Clipboard.setData(ClipboardData(text: phone));
-                      ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Number copied')));
-                    },
+                    child: Text(
+                      (phone != null && phone.trim().isNotEmpty)
+                          ? phone.trim()
+                          : 'No mobile number provided',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: (phone != null && phone.trim().isNotEmpty)
+                            ? kInk
+                            : kMuted,
+                      ),
+                    ),
+                  ),
+                  if (phone != null && phone.trim().isNotEmpty) ...[
+                    IconButton(
+                      tooltip: 'Copy mobile number',
+                      icon: const Icon(Icons.copy, size: 18),
+                      onPressed: () {
+                        Clipboard.setData(ClipboardData(text: phone.trim()));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Mobile number copied')));
+                      },
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+          if (isDeclined) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF1F2),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: const [
+                  Icon(Icons.cancel_outlined, size: 15, color: Color(0xFFE11D48)),
+                  SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Donor declined this blood request.',
+                      style: TextStyle(fontSize: 12, color: Color(0xFFBE123C)),
+                    ),
                   ),
                 ],
               ),
@@ -582,3 +875,156 @@ class _ResponderTile extends StatelessWidget {
     );
   }
 }
+
+class _AvailableDonorTile extends StatelessWidget {
+  final PotentialDonor d;
+  final BloodRequest request;
+  const _AvailableDonorTile({required this.d, required this.request});
+
+  @override
+  Widget build(BuildContext context) {
+    final distText = d.distanceKm != null
+        ? '${d.distanceKm!.toStringAsFixed(1)} km away'
+        : 'Nearby';
+
+    return AppCard(
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 22,
+                backgroundColor: kPrimarySoft,
+                child: Text(
+                  d.name.trim().isEmpty ? 'D' : d.name.trim()[0].toUpperCase(),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: kPrimaryDark,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      d.name,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: kInk,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        const Icon(Icons.location_on_outlined,
+                            size: 13, color: kMuted),
+                        const SizedBox(width: 3),
+                        Text(
+                          d.city.isNotEmpty ? d.city : 'Nearby',
+                          style: const TextStyle(fontSize: 12, color: kMuted),
+                        ),
+                        if (d.totalDonations > 0) ...[
+                          const SizedBox(width: 6),
+                          const Text('\u2022',
+                              style: TextStyle(color: kMuted, fontSize: 10)),
+                          const SizedBox(width: 6),
+                          Text(
+                            '${d.totalDonations} ${d.totalDonations == 1 ? 'donation' : 'donations'}',
+                            style:
+                                const TextStyle(fontSize: 12, color: kMuted),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Pill(
+                    d.bloodGroup.isNotEmpty ? d.bloodGroup : 'Match',
+                    background: const Color(0xFFFDF2F2),
+                    foreground: const Color(0xFFBA1A1A),
+                  ),
+                  const SizedBox(height: 4),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFECFDF5),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFA7F3D0)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.near_me_outlined,
+                            size: 12, color: Color(0xFF059669)),
+                        const SizedBox(width: 4),
+                        Text(
+                          distText,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF047857),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              const Pill(
+                'AVAILABLE',
+                background: Color(0xFFF3F4F6),
+                foreground: Color(0xFF374151),
+              ),
+              if (d.responseProbability != null)
+                Pill(
+                  '${(d.responseProbability! * 100).round()}% ML MATCH',
+                  background: const Color(0xFFEEF2FF),
+                  foreground: const Color(0xFF4338CA),
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8F7FA),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.lock_outline, size: 12, color: kMuted),
+                SizedBox(width: 5),
+                Text(
+                  'Donor phone private until request accepted',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: kMuted,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

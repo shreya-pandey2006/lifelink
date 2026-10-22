@@ -789,7 +789,7 @@ const getPotentialDonors = async (req, res) => {
       available: true,
       user: { $ne: bloodRequest.requester }
     })
-      .populate("user", "name email phone city")
+      .populate("user", "name city")
       .select(
         "_id user bloodGroup city available lastDonationDate age weightKg hemoglobinGDl totalDonations lat lng"
       );
@@ -860,8 +860,9 @@ const getPotentialDonors = async (req, res) => {
       obj.distanceKm = donor._distanceKm ?? null;
       if (donor.user && typeof donor.user === "object") {
         obj.name = donor.user.name || "Matching Donor";
-        obj.phone = donor.user.phone || null;
       }
+      // Privacy rule: Available donors' numbers are never exposed to the requester
+      obj.phone = null;
       return { ...obj, ...extra };
     };
 

@@ -15,6 +15,8 @@ class AlertItem {
   final String department;
   final int donorsPinged;
   final String routeSnippet;
+  final String? requesterName;
+  final String? requesterPhone;
 
   const AlertItem({
     required this.requestId,
@@ -30,6 +32,8 @@ class AlertItem {
     this.department = '',
     this.donorsPinged = 0,
     this.routeSnippet = '',
+    this.requesterName,
+    this.requesterPhone,
   });
 
   bool get isCritical => urgency == 3;
@@ -84,6 +88,12 @@ class AlertItem {
             ? 'Emergency Blood Request'
             : 'Blood Request');
 
+    final req = j['requester'];
+    final reqName = (req is Map ? req['name'] : null)?.toString() ??
+        (j['requesterName'] ?? patientMap?['contactName'] ?? patientMap?['requesterName'])?.toString();
+    final reqPhone = (req is Map ? req['phone'] : null)?.toString() ??
+        (j['requesterPhone'] ?? patientMap?['phone'] ?? patientMap?['contact'] ?? patientMap?['contactNumber'])?.toString();
+
     return AlertItem(
       requestId: (j['requestId'] ?? j['id'] ?? j['_id'] ?? '').toString(),
       bloodGroup: (j['bloodGroup'] ?? 'O-').toString(),
@@ -98,6 +108,8 @@ class AlertItem {
       department: dept,
       donorsPinged: asInt(j['donorsPinged'] ?? j['matchingDonorsCount'], 0),
       routeSnippet: (j['routeSnippet'] ?? '').toString(),
+      requesterName: reqName,
+      requesterPhone: reqPhone,
     );
   }
 }

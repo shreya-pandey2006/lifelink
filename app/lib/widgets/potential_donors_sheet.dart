@@ -4,6 +4,8 @@ import '../core/theme.dart';
 import '../models/blood_request.dart';
 import '../models/potential_donor.dart';
 import '../providers/request_provider.dart';
+import '../providers/tracking_provider.dart';
+import '../widgets/ui.dart';
 
 void showPotentialDonorsSheet(BuildContext context, BloodRequest request) {
   showModalBottomSheet(
@@ -135,14 +137,38 @@ class _PotentialDonorsSheetState extends State<PotentialDonorsSheet> {
             ),
           ),
           const SizedBox(height: 16),
-          const Text(
-            'Compatible Donors in Radar Range',
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w800,
-              color: kInk,
-            ),
-          ),
+          () {
+            final Pill pill;
+            switch (r.urgency) {
+              case 3:
+                pill = const Pill('≤ 5 km radius',
+                    background: Color(0xFFFEE2E2), foreground: Color(0xFFDC2626));
+                break;
+              case 2:
+                pill = const Pill('≤ 10 km radius',
+                    background: Color(0xFFFEF3C7), foreground: Color(0xFFD97706));
+                break;
+              case 1:
+              default:
+                pill = const Pill('≤ 20 km radius',
+                    background: Color(0xFFE0F2FE), foreground: Color(0xFF0369A1));
+                break;
+            }
+            return Row(
+              children: [
+                const Text(
+                  'Compatible Donors in Radar Range',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: kInk,
+                  ),
+                ),
+                const Spacer(),
+                pill,
+              ],
+            );
+          }(),
           const SizedBox(height: 8),
           Expanded(
             child: FutureBuilder<List<PotentialDonor>>(
@@ -161,15 +187,19 @@ class _PotentialDonorsSheetState extends State<PotentialDonorsSheet> {
                     ),
                   );
                 }
-                final list = snap.data ?? [];
+                final radius = maxRadiusKmForUrgency(r.urgency);
+                final rawList = snap.data ?? [];
+                final list = rawList
+                    .where((d) => d.distanceKm == null || d.distanceKm! <= radius)
+                    .toList();
                 if (list.isEmpty) {
-                  return const Center(
+                  return Center(
                     child: Padding(
-                      padding: EdgeInsets.all(24),
+                      padding: const EdgeInsets.all(24),
                       child: Text(
-                        'No matching donors currently registered in this city.',
+                        'No matching donors currently registered within ${radius.toStringAsFixed(0)} km.',
                         textAlign: TextAlign.center,
-                        style: TextStyle(color: kMuted),
+                        style: const TextStyle(color: kMuted),
                       ),
                     ),
                   );
@@ -206,7 +236,7 @@ class _PotentialDonorsSheetState extends State<PotentialDonorsSheet> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Donor (${d.bloodGroup}) \u2022 ${d.city}',
+                                  '${d.name} (${d.bloodGroup}) \u2022 ${d.city}',
                                   style: const TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w800,
@@ -215,7 +245,7 @@ class _PotentialDonorsSheetState extends State<PotentialDonorsSheet> {
                                 ),
                                 const SizedBox(height: 3),
                                 Text(
-                                  '${d.totalDonations} past donations${d.age != null ? ' \u2022 ${d.age} yrs' : ''}',
+                                  '${d.distanceKm != null ? '${d.distanceKm!.toStringAsFixed(1)} km \u2022 ' : ''}${d.totalDonations} past donations${d.age != null ? ' \u2022 ${d.age} yrs' : ''}',
                                   style: const TextStyle(
                                     fontSize: 12,
                                     color: kMuted,
