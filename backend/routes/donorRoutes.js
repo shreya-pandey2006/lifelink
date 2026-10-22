@@ -5,7 +5,8 @@ const {
   getMyDonorProfile,
   updateAvailability,
   updateMLDetails,
-  getAvailableDonorCount
+  getAvailableDonorCount,
+  updateDonorProfile
 } = require("../controllers/donorController");
 
 const {
@@ -18,6 +19,20 @@ router.get(
   auth,
   requireRole("donor"),
   getMyDonorProfile
+);
+
+router.put(
+  "/me",
+  auth,
+  requireRole("donor"),
+  updateDonorProfile
+);
+
+router.patch(
+  "/me",
+  auth,
+  requireRole("donor"),
+  updateDonorProfile
 );
 
 router.patch(

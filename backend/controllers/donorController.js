@@ -159,9 +159,53 @@ const getAvailableDonorCount = async (req, res) => {
   }
 };
 
+const updateDonorProfile = async (req, res) => {
+  try {
+    if (!req.body || typeof req.body !== "object" || Array.isArray(req.body)) {
+      return res.status(400).json({
+        success: false,
+        message: "Request body must be an object"
+      });
+    }
+
+    const allowed = {};
+    if (typeof req.body.available === "boolean") allowed.available = req.body.available;
+    if (Number.isFinite(req.body.lat)) allowed.lat = req.body.lat;
+    if (Number.isFinite(req.body.lng)) allowed.lng = req.body.lng;
+    if (typeof req.body.city === "string" && req.body.city.trim()) {
+      allowed.city = req.body.city.trim();
+    }
+
+    const donor = await Donor.findOneAndUpdate(
+      { user: req.user.id },
+      { $set: allowed },
+      { new: true, runValidators: true }
+    );
+
+    if (!donor) {
+      return res.status(404).json({
+        success: false,
+        message: "Donor profile not found"
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Donor profile updated successfully",
+      donor
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update donor profile"
+    });
+  }
+};
+
 module.exports = {
   getMyDonorProfile,
   updateAvailability,
   updateMLDetails,
-  getAvailableDonorCount
+  getAvailableDonorCount,
+  updateDonorProfile
 };

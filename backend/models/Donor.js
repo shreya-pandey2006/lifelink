@@ -28,6 +28,16 @@ const donorSchema = new mongoose.Schema(
       default: true
     },
 
+    lat: {
+      type: Number,
+      default: null
+    },
+
+    lng: {
+      type: Number,
+      default: null
+    },
+
     lastDonationDate: {
       type: Date,
       default: null

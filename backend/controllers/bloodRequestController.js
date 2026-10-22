@@ -6,7 +6,10 @@ const Notification = require("../models/Notification");
 const User = require("../models/User");
 
 const {
-  getCompatibleBloodGroups
+  getCompatibleBloodGroups,
+  calculateDistanceKm,
+  getMaxRadiusKm,
+  getEffectiveCoordinates
 } = require("../services/donorMatchingService");
 
 const {
@@ -645,10 +648,15 @@ const getBloodRequestById = async (req, res) => {
       };
     });
 
+    const maxRadiusKm = getMaxRadiusKm(
+      bloodRequest.urgency || bloodRequest.predictedUrgency
+    );
+
     const bloodRequestObj = {
       ...bloodRequest.toObject(),
       unitsAccepted: acceptedCount,
-      responses: formattedResponses
+      responses: formattedResponses,
+      maxRadiusKm
     };
 
     return res.status(200).json({
@@ -656,7 +664,8 @@ const getBloodRequestById = async (req, res) => {
       bloodRequest: bloodRequestObj,
       request: bloodRequestObj,
       responses: formattedResponses,
-      unitsAccepted: acceptedCount
+      unitsAccepted: acceptedCount,
+      maxRadiusKm
     });
   } catch (error) {
     console.error("Get blood request by ID error:", error.message);
@@ -720,58 +729,85 @@ const getPotentialDonors = async (req, res) => {
       });
     }
 
-    const safeCityRegex = new RegExp(
-      `^${escapeRegex(bloodRequest.city.trim())}$`,
-      "i"
-    );
+    const effectiveUrgency =
+      bloodRequest.urgency || bloodRequest.predictedUrgency || "normal";
+    const maxRadiusKm = getMaxRadiusKm(effectiveUrgency);
+
+    const reqCoords = getEffectiveCoordinates({
+      lat:
+        bloodRequest.lat ??
+        bloodRequest.patient?.lat ??
+        bloodRequest.patient?.latitude ??
+        bloodRequest.patient?.hospitalLatitude,
+      lng:
+        bloodRequest.lng ??
+        bloodRequest.patient?.lng ??
+        bloodRequest.patient?.longitude ??
+        bloodRequest.patient?.hospitalLongitude,
+      city: bloodRequest.city
+    });
 
     const donors = await Donor.find({
-        bloodGroup: { $in: compatibleGroups },
-        city: { $regex: safeCityRegex },
-        available: true
-      }).select(
-           "_id user bloodGroup city available lastDonationDate age weightKg hemoglobinGDl totalDonations"
-      ).populate("user", "name");
-
-      const respondedDonors = await DonorResponse.distinct(
-        "donor",
-        { bloodRequest: bloodRequest._id }
+      bloodGroup: { $in: compatibleGroups },
+      available: true,
+      user: { $ne: bloodRequest.requester }
+    })
+      .populate("user", "name email phone city")
+      .select(
+        "_id user bloodGroup city available lastDonationDate age weightKg hemoglobinGDl totalDonations lat lng"
       );
-
-      const respondedDonorIds = new Set(
-        respondedDonors.map(id => id.toString())
-      );
-
-      const donorsWithoutResponses = donors.filter(donor => {
-        const userId = donor.user?._id?.toString()
-          ?? donor.user?.toString();
-
-        return !respondedDonorIds.has(userId);
-      });
 
     // Exclude donors who donated within the previous 90 days.
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - 90);
 
-    const eligibleDonors = donorsWithoutResponses.filter((donor) => {
+    const eligibleDonors = donors.filter((donor) => {
       const totalDonations = donor.totalDonations ?? 0;
 
       if (totalDonations === 0) {
-        return !donor.lastDonationDate;
+        if (donor.lastDonationDate) return false;
+      } else {
+        if (!donor.lastDonationDate) return false;
+        const lastDonation = new Date(donor.lastDonationDate);
+        if (Number.isNaN(lastDonation.getTime()) || lastDonation > cutoffDate) {
+          return false;
+        }
       }
 
-      if (!donor.lastDonationDate) {
+      // Location & Radius Filtering:
+      // 1. Normal: within 20 km radius
+      // 2. Urgent: within 10 km radius
+      // 3. Critical: within 5 km radius
+      const donorCoords = getEffectiveCoordinates({
+        lat: donor.lat,
+        lng: donor.lng,
+        city: donor.city || donor.user?.city
+      });
+
+      let distance = null;
+      if (reqCoords && donorCoords) {
+        distance = calculateDistanceKm(
+          reqCoords.lat,
+          reqCoords.lng,
+          donorCoords.lat,
+          donorCoords.lng
+        );
+      } else if (
+        bloodRequest.city &&
+        (donor.city || donor.user?.city) &&
+        bloodRequest.city.trim().toLowerCase() ===
+          (donor.city || donor.user?.city).trim().toLowerCase()
+      ) {
+        distance = 0.0;
+      }
+
+      // Exclude donors outside radius or whose distance cannot be verified
+      if (distance === null || distance > maxRadiusKm) {
         return false;
       }
 
-      const lastDonation =
-        new Date(donor.lastDonationDate);
-
-      if (Number.isNaN(lastDonation.getTime())) {
-        return false;
-      }
-
-      return lastDonation <= cutoffDate;
+      donor._distanceKm = Math.round(distance * 10) / 10;
+      return true;
     });
 
     const hasMlData = (donor) =>
@@ -782,7 +818,17 @@ const getPotentialDonors = async (req, res) => {
     const mlReady = eligibleDonors.filter(hasMlData);
     const mlSkipped = eligibleDonors.filter((donor) => !hasMlData(donor));
 
-    let rankedList = mlReady.map((donor) => donor.toObject());
+    const toDonorPayload = (donor, extra = {}) => {
+      const obj = donor.toObject ? donor.toObject() : { ...donor };
+      obj.distanceKm = donor._distanceKm ?? null;
+      if (donor.user && typeof donor.user === "object") {
+        obj.name = donor.user.name || "Matching Donor";
+        obj.phone = donor.user.phone || null;
+      }
+      return { ...obj, ...extra };
+    };
+
+    let rankedList = mlReady.map((donor) => toDonorPayload(donor));
     let rankingApplied = false;
 
     if (mlReady.length > 0) {
@@ -825,11 +871,12 @@ const getPotentialDonors = async (req, res) => {
         );
 
         rankedList = mlReady
-          .map((donor) => ({
-            ...donor.toObject(),
-            responseProbability:
-              scoreMap.get(donor._id.toString()) ?? null
-          }))
+          .map((donor) =>
+            toDonorPayload(donor, {
+              responseProbability:
+                scoreMap.get(donor._id.toString()) ?? null
+            })
+          )
           .sort(
             (a, b) =>
               (b.responseProbability ?? -1) -
@@ -838,21 +885,28 @@ const getPotentialDonors = async (req, res) => {
 
         rankingApplied = true;
       } catch (mlError) {
-        // Fall back to the original donor list if ML fails.
+        // Fall back to the distance-ranked donor list if ML fails.
         console.error(
           "Rank donors ML error:",
           mlError.message
         );
+        rankedList = mlReady
+          .map((donor) => toDonorPayload(donor))
+          .sort((a, b) => (a.distanceKm ?? 999) - (b.distanceKm ?? 999));
       }
     }
 
-    // Donors without ML data remain at the end.
+    // Donors without ML data remain at the end, sorted by distance
+    const sortedMlSkipped = mlSkipped
+      .map((donor) => toDonorPayload(donor))
+      .sort((a, b) => (a.distanceKm ?? 999) - (b.distanceKm ?? 999));
+
     const potentialDonors = [
       ...rankedList,
-      ...mlSkipped.map((donor) => donor.toObject())
+      ...sortedMlSkipped
     ];
 
-    // Paginate after ranking.
+    // Paginate after ranking and location filter.
     const totalPotentialDonors = potentialDonors.length;
 
     const totalPages =
@@ -864,6 +918,8 @@ const getPotentialDonors = async (req, res) => {
     return res.status(200).json({
       success: true,
       requestId: bloodRequest._id,
+      urgency: effectiveUrgency,
+      maxRadiusKm,
       predictedUrgency: bloodRequest.predictedUrgency,
       rankingApplied,
       totalPotentialDonors,
@@ -913,7 +969,8 @@ const cancelBloodRequest = async (req, res) => {
     }
 
     // Only the requester who created it can cancel it.
-    if ( bloodRequest.requester.toString() !== req.user.id
+    if (
+      bloodRequest.requester.toString() !== req.user.id
     ) {
       return res.status(403).json({
         success: false,
