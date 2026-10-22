@@ -726,18 +726,34 @@ const getPotentialDonors = async (req, res) => {
     );
 
     const donors = await Donor.find({
-      bloodGroup: { $in: compatibleGroups },
-      city: { $regex: safeCityRegex },
-      available: true
-    }).select(
-      "_id user bloodGroup city available lastDonationDate age weightKg hemoglobinGDl totalDonations"
-    );
+        bloodGroup: { $in: compatibleGroups },
+        city: { $regex: safeCityRegex },
+        available: true
+      }).select(
+           "_id user bloodGroup city available lastDonationDate age weightKg hemoglobinGDl totalDonations"
+      ).populate("user", "name");
+
+      const respondedDonors = await DonorResponse.distinct(
+        "donor",
+        { bloodRequest: bloodRequest._id }
+      );
+
+      const respondedDonorIds = new Set(
+        respondedDonors.map(id => id.toString())
+      );
+
+      const donorsWithoutResponses = donors.filter(donor => {
+        const userId = donor.user?._id?.toString()
+          ?? donor.user?.toString();
+
+        return !respondedDonorIds.has(userId);
+      });
 
     // Exclude donors who donated within the previous 90 days.
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - 90);
 
-    const eligibleDonors = donors.filter((donor) => {
+    const eligibleDonors = donorsWithoutResponses.filter((donor) => {
       const totalDonations = donor.totalDonations ?? 0;
 
       if (totalDonations === 0) {
@@ -897,8 +913,7 @@ const cancelBloodRequest = async (req, res) => {
     }
 
     // Only the requester who created it can cancel it.
-    if (
-      bloodRequest.requester.toString() !== req.user.id
+    if ( bloodRequest.requester.toString() !== req.user.id
     ) {
       return res.status(403).json({
         success: false,
