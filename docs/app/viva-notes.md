@@ -6,10 +6,10 @@ Concise, accurate answers to the technical and architectural questions most like
 
 ## 1. Project and Architecture
 **What does the app do?**  
-LifeLink is an emergency blood dispatch application. Requesters can post urgent blood requests complete with hospital coordinates, severity levels, and clinical vitals. Donors receive alerts matching their blood group and city, view hospital route/distance details, and accept or decline in real time. Both roles receive status updates through a live in-app notification center.
+LifeLink is an emergency blood dispatch application. Requesters post urgent blood requests with hospital coordinates, severity levels, and clinical vitals. Donors receive alerts matching their blood group and dynamic geographic radius, view hospital route/distance details, accept or decline in real time, coordinate directly with requesters, and mark donation completion. Both roles receive status updates through a live in-app notification center.
 
 **What did you build yourself?**  
-The entire Flutter mobile client: responsive UI in dark-mode medical aesthetics, Provider-based state management, declarative GoRouter navigation with auth guards, the resilient HTTP `ApiClient`, device GPS integration, native Google Maps integration, and a full-featured offline `MockApi` engine. I integrated the app with the deployed Node.js/Express backend and FastAPI ML microservices built by the team.
+The entire Flutter mobile client: responsive UI in dark-mode medical aesthetics, Provider-based state management, declarative GoRouter navigation with auth guards, the resilient HTTP `ApiClient`, device GPS integration, native Google Maps integration, dynamic urgency radius filtering, privacy masking boundaries, and a full-featured offline `MockApi` engine. I integrated the app with the deployed Node.js/Express backend and FastAPI ML microservices built by the team.
 
 **How is the app structured?**  
 In clean layers:
@@ -43,16 +43,15 @@ It links a `Listenable` (here, `AuthProvider`) directly to the router. Whenever 
 **What is a `StatefulShellRoute`?**  
 `StatefulShellRoute.indexedStack` maintains a persistent navigation frame (the bottom navigation bar) across multiple tabs, preserving each tab's scroll position and widget state when switching back and forth.
 
-**What is the difference between `context.go()` and `context.push()`?**  
-- `context.go()` replaces the current navigation stack with the target route.
-- `context.push()` pushes a new screen onto the top of the stack, enabling standard back-button pop behavior.
+**How does post-acceptance navigation work for donors?**  
+When a donor accepts an alert on `AlertDetailScreen`, GoRouter immediately navigates the donor to `/requests/track/:id`. This transitions the donor directly into dispatch mode, showing the hospital map, requester phone dialer, and donation completion checkbox.
 
 **Why is `/request/new` declared before `/request/:id` in route definitions?**  
 GoRouter evaluates routes in the order they are defined. If `/request/:id` was listed first, the string `"new"` would be captured as a path parameter `:id` instead of matching the creation screen.
 
 ---
 
-## 4. Networking and Security
+## 4. Networking, Security, and Privacy
 **How does login session persistence work?**  
 Upon login, the returned JWT is saved in `SharedPreferences`. When the app starts up, `AuthProvider.init()` reads the saved token and verifies it via `GET /api/auth/me`. If the token is valid, the session is restored without prompting for credentials.
 
@@ -60,38 +59,51 @@ Upon login, the returned JWT is saved in `SharedPreferences`. When the app start
 `ApiClient` intercepts every outgoing HTTP request and appends the header:  
 `Authorization: Bearer <token>`.
 
+**How does LifeLink protect user privacy?**  
+Through mutual privacy boundaries:
+1. **Donor Privacy**: In candidate donor listings (`potential-donors`), donor phone numbers and emails are masked (`null`) to protect volunteers from unsolicited calls. Requesters only receive a donor's contact after that donor has voluntarily accepted the alert.
+2. **Requester Privacy**: The requester's contact phone number is exposed to a donor only after the donor accepts the request.
+3. **Scoped Visibility**: When a donor views the tracking screen, the backend scopes the response array to show only that donor's response, preventing visibility of other donors' identities.
+
 **What happens when a token expires?**  
 The backend responds with HTTP `401 Unauthorized`. `ApiClient` triggers its `onUnauthorized` callback, which clears local credentials, resets providers, and redirects the user to the login screen.
-
-**Is `SharedPreferences` secure for production storage?**  
-No, `SharedPreferences` stores unencrypted XML/plist data. In a production release, `flutter_secure_storage` would be used, leveraging Android Keystore and iOS Keychain for hardware-backed encryption.
 
 **Where is role-based authorization enforced?**  
 The Flutter client uses role checks (e.g. `isDonor`) purely for UI convenience and navigation routing. True role security is strictly enforced on the server by backend JWT authentication middleware (`requireRole('requester')`, `requireRole('donor')`).
 
-**How are network errors and cold starts handled?**  
-`ApiClient` handles timeouts (up to 45s) and retries on transient 502/503/504 errors (useful when waking Render free-tier instances). It converts low-level socket and HTTP exceptions into user-friendly `ApiException` messages with retry options.
-
 ---
 
-## 5. Live Updates and Location
+## 5. Live Updates, Maps, and Dynamic Radius
 **How do live updates work without push notifications?**  
 Using lifecycle-aware periodic polling (`Timer.periodic`). The polling frequency is tailored per screen:
-- **Request Tracking**: Every 8 seconds
+- **Request Tracking**: Every 8 seconds (syncs units accepted and donation status)
 - **My Requests**: Every 10 seconds
 - **Donor Alert Feed**: Every 15 seconds
 - **Shell Notification Badge**: Every 20 seconds  
 All timers are safely cancelled in `dispose()`.
 
-**What are the tradeoffs of polling vs. WebSockets/Push?**  
-Polling introduces a slight latency (up to the interval duration) and consumes more battery/network requests. The production upgrade would be WebSocket (Socket.IO) or Firebase Cloud Messaging (FCM).
+**How does dynamic radius matching work?**  
+Matching dynamically adjusts search radius based on patient clinical urgency:
+- **Critical / Emergency**: 5 km radius (prioritizes immediate response time)
+- **Urgent**: 10 km radius
+- **Normal**: 20 km radius  
+The Haversine formula calculates real-time distance between hospital GPS coordinates and donor coordinates. Donors outside the respective boundary are filtered out.
 
 **How does map rendering and location picking work?**  
-The app integrates `google_maps_flutter` for native, hardware-accelerated mapping across the emergency dispatch flow. It renders destination hospital markers, donor GPS locations, and provides an interactive map picker for dropping precise destination coordinates. Pin placement is synchronized with Geolocator GPS coordinates and city center fallbacks, allowing requesters to pinpoint exact emergency trauma centers. Donors view straight-line hospital distances computed via the Haversine formula alongside map previews.
+The app integrates `google_maps_flutter` for native, hardware-accelerated mapping across the emergency dispatch flow. It renders destination hospital markers, donor GPS locations, and provides an interactive map picker for dropping precise destination coordinates. Pin placement is synchronized with Geolocator GPS coordinates and city center fallbacks.
 
 ---
 
-## 6. Machine Learning and Backend Integration
+## 6. Donation Lifecycle and Completion
+**How is the donation lifecycle verified and closed?**  
+1. When the donor arrives at the hospital and completes donation, they check the **"Mark as Donated"** toggle on the Tracking Screen.
+2. The app invokes `PATCH /api/responses/:requestId/donation-status` with `{ "donated": true }`.
+3. The backend logs the timestamp `donatedAt`, updates the donor's profile (`lastDonationDate`, increments `totalDonations`), and automatically sends an in-app notification to the requester.
+4. When all required units are matched, the request status updates to `matched`.
+
+---
+
+## 7. Machine Learning and Backend Integration
 **Where is ML used in LifeLink?**  
 LifeLink utilizes two ML microservices hosted on Render:
 1. **Donor Ranking Model (Model 1)**: Ranks candidate donors based on `age`, `weight_kg`, `hemoglobin_g_dL`, `total_donations`, and `days_since_last_donation`. The app collects `age`, `weightKg`, and `hemoglobinGDl` on the Donor Health Details screen and posts them via `PATCH /api/donors/ml-details`.
@@ -104,17 +116,14 @@ Because the frontend and backend were developed concurrently, `MockApi` was crea
 **How do you toggle between the live server and mock mode?**  
 In `lib/core/config.dart`, change `const bool kUseMockApi = false;` to `true`.
 
-**Which parts use the live backend?**  
-User authentication (registration, login, session check), blood requests (creating, listing, single request detail, cancellation), potential donor queries, donor responses (accept/decline), donor profile & availability, ML details, and the full notification lifecycle (list, unread count, mark read, delete) all communicate directly with the live deployed backend. The alert feed aggregates live open requests and notifications.
-
 ---
 
-## 7. Limitations and Future Improvements
+## 8. Limitations and Future Improvements
 **What would you improve with more time?**  
-1. Replace polling with real-time WebSockets or FCM push notifications.
+1. Replace polling with real-time WebSockets (Socket.IO) or Firebase Cloud Messaging (FCM) push notifications.
 2. Upgrade credential storage to `flutter_secure_storage`.
-3. Add live GPS tracking of dispatched donors on route to the hospital.
-4. Implement geospatial query indexing (`$nearSphere`) directly in MongoDB.
+3. Add turn-by-turn routing with Google Directions API displaying live polyline routes for dispatched donors.
+4. Integrate biometric authentication (fingerprint/Face ID) for rapid emergency login.
 
 **Is LifeLink intended for clinical deployment?**  
 No, this is an academic prototype and engineering proof of concept. A production medical dispatch network requires certified hospital integrations, regulatory compliance (HIPAA/GDPR), donor medical screening, and verified emergency dispatch protocols.

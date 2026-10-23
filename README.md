@@ -88,6 +88,9 @@ LifeLink is structured into dedicated, decoupled domain folders:
 * **State Management**: Reactive state management built on `ChangeNotifier` and `Provider` (`AuthProvider`, `RequestProvider`, `AlertProvider`, `DonorProvider`, `TrackingProvider`, `NotificationProvider`, `HistoryProvider`).
 * **Navigation**: Declarative routing via `GoRouter` with auth guards, dynamic redirect on state changes (`refreshListenable`), and a persistent bottom navigation shell.
 * **Interactive Medical Dispatch Maps (`Google Maps`)**: Native Google Maps integration (`google_maps_flutter`) visualizing hospital locations, donor coordinates, pin-drop location selection, and live route destinations with high-accuracy markers and satellite/street mapping.
+* **Seamless Dispatch & Tracking Flow**: One-tap alert acceptance immediately routes donors into the live tracking screen with hospital directions and direct requester telephone dialer.
+* **Donation Lifecycle Verification**: In-app "Mark as Donated" checkbox updating donor profile statistics and triggering instant requester notifications.
+* **Dynamic Radius & Privacy Safeguards**: Urgency-driven radius matching (5 km Critical, 10 km Urgent, 20 km Normal) with mutual contact masking until voluntary acceptance.
 * **Dual Operation Mode**: Powered by a central `ApiClient` that connects to the live deployed cloud backend, with an embedded local `MockApi` for zero-downtime offline demonstrations.
 
 ### 2. Backend Microservice (`/backend`)
@@ -134,10 +137,13 @@ All architectural guides, API specifications, and demonstration scripts are loca
 
 * **⚡ Role-Specific Experience**:
   * *Requesters*: Intuitive request builder with hospital pin drop, urgency triage, live timeline tracking, and contact reveal upon donor acceptance.
-  * *Donors*: Tailored emergency alert feed filtered by antigen compatibility and city, hospital distance calculation, and health metric tracking.
+  * *Donors*: Tailored emergency alert feed filtered by antigen compatibility and dynamic radius, hospital distance calculation, one-tap accept routing directly to tracking, and health metric tracking.
   * *Admins*: Consolidated metrics and fleet-wide request moderation.
 * **🎯 Dual AI Integration**: Automatic urgency classification on request creation and response probability scoring for donor selection.
 * **🗺️ Interactive Google Maps**: Hospital location pinning, real-time donor location previews, destination markers, and camera centering.
+* **📍 Dynamic Urgency Radius Matching**: Clinical urgency dictates geographic matching radius (5 km for Critical/Emergency, 10 km for Urgent, 20 km for Normal).
+* **🛡️ Mutual Privacy Protection**: Candidate donor phone numbers are shielded until alert acceptance; requester contact is scoped strictly to accepted volunteers.
+* **✅ Verified Donation Completion**: Accepted donors mark completion via in-app toggle, updating donor profiles and dispatching automated verification notifications.
 * **🔔 Live Notification Feed**: Lifecycle-aware periodic polling (8s–20s) with unread indicators and emergency sound alert styling without third-party push dependencies.
 * **🛡️ Defensive Offline Fallback**: One-click switch (`kUseMockApi`) enabling a complete in-memory mock backend for offline testing.
 
@@ -233,6 +239,10 @@ flutter run -d android
 
 # Build optimized Release APKs (split per CPU architecture)
 flutter build apk --split-per-abi
+
+# Run test suites (radius filtering, notification parsing)
+flutter test
+flutter test test/radius_filter_test.dart
 ```
 
 > **Build Artifacts**:
@@ -292,7 +302,7 @@ The urgency prediction API docs will be accessible at `http://localhost:8000/doc
 
 ## 💻 Tech Stack
 
-* **Client**: Flutter, Dart, GoRouter, Provider, OpenStreetMap, ESRI Tiles, Geolocator
+* **Client**: Flutter, Dart, GoRouter, Provider, Google Maps (`google_maps_flutter`), Geolocator
 * **Web Dashboard**: React 19, Vite, Oxlint, Vanilla CSS
 * **Backend**: Node.js, Express 5, MongoDB, Mongoose, JWT, Bcrypt, Axios
 * **Machine Learning**: Python, FastAPI, Scikit-learn, Pandas, NumPy, Joblib, Uvicorn

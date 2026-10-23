@@ -51,7 +51,7 @@ Each provider extends `ChangeNotifier` and is registered at the app root in `mai
 | `RequestProvider` | Requester's blood requests, creating requests, and potential donor matching |
 | `AlertProvider` | Compatible open blood requests and alerts matching donor blood group/city |
 | `DonorProvider` | Availability toggle, GPS location, and health details used by ML ranking |
-| `TrackingProvider` | Live request dispatch timeline, hospital coordinates, and responding donors |
+| `TrackingProvider` | Live request dispatch timeline, hospital coordinates, responding donors, dynamic urgency radius calculation, and donor completion status (`myDonated`, `updateDonationStatus`) |
 | `NotificationProvider` | In-app notification feed, unread counter, read/delete mutations |
 | `HistoryProvider` | Donor's past responses and donation record history |
 
@@ -65,6 +65,7 @@ All application screens are defined as declarative routes in `lib/router/app_rou
 - **Bottom Navigation Shell**: `StatefulShellRoute.indexedStack` maintains state across four persistent tabs (Home, Requests/Alerts, Notifications, Profile).
 - **Role-Aware Tabs**: The `/requests` route automatically switches between the Donor Alert Feed for donors and "My Requests" for requesters.
 - **Modal & Detail Routes**: Full-screen routes outside the tab bar include `/request/new`, `/request/:id`, `/pick-location`, `/alert/:requestId`, `/donor-details`, and `/history`. `/request/new` is registered before `/request/:id` to prevent route parameter collision.
+- **Post-Accept Dispatch Navigation**: When a donor accepts an alert on `AlertDetailScreen`, GoRouter immediately navigates them to `/requests/track/:id`, presenting hospital destination maps, requester contact cards, and completion toggles.
 
 ## 5. Authentication flow
 
@@ -79,34 +80,51 @@ All application screens are defined as declarative routes in `lib/router/app_rou
 
 To maintain low latency without third-party push notification dependencies, screens use lifecycle-managed `Timer.periodic` polling that automatically disposes when screens unmount:
 
-| Screen / Component | Interval | Target Endpoint |
-|---|---|---|
-| Request Tracking Screen | 8 seconds | `GET /api/requests/:requestId` |
-| My Requests Screen | 10 seconds | `GET /api/requests` |
-| Donor Alert Feed | 15 seconds | `GET /api/requests` & `GET /api/notifications` |
-| Main Navigation Shell (Notification Badge) | 20 seconds | `GET /api/notifications/unread-count` |
+| Screen / Component | Interval | Target Endpoint | Audience |
+|---|---|---|---|
+| Request Tracking Screen | 8 seconds | `GET /api/requests/:requestId` | Requesters & Dispatched Donors |
+| My Requests Screen | 10 seconds | `GET /api/requests` | Requesters |
+| Donor Alert Feed | 15 seconds | `GET /api/requests` & `GET /api/notifications` | Donors |
+| Main Navigation Shell (Notification Badge) | 20 seconds | `GET /api/notifications/unread-count` | All Roles |
 
-## 7. Location and maps
+## 7. Location, maps, and dynamic radius matching
 
 - **Geolocator**: Retrieves high-accuracy device GPS coordinates with permission handling via `LocationService`.
 - **Google Maps Integration (`google_maps_flutter`)**: Native Google Maps displays hospital locations, donor GPS coordinates, and pin-drop hospital placement across mobile with satellite and street mapping.
 - **Pin Placement**: Requesters can drop hospital coordinates interactively on `LocationPickerScreen`, sending precise latitude and longitude with the blood request.
-- **Distance Calculation**: Donor alert cards display straight-line distance to the target hospital using Haversine calculation against the donor's saved coordinates.
+- **Dynamic Clinical Radius Matching**:
+  - Distance between hospital and donor coordinates is calculated using the Haversine formula:
+    $$d = 2R \cdot \arcsin\left(\sqrt{\sin^2\left(\frac{\Delta\text{lat}}{2}\right) + \cos(\text{lat}_1)\cos(\text{lat}_2)\sin^2\left(\frac{\Delta\text{lng}}{2}\right)}\right)$$
+  - Urgency radius thresholds:
+    - **Critical / Emergency (Urgency Level 3)**: Matched within **5 km** for rapid triage.
+    - **Urgent (Urgency Level 2)**: Matched within **10 km**.
+    - **Normal (Urgency Level 1)**: Matched within **20 km**.
+  - Validated by automated unit tests in `test/radius_filter_test.dart`.
 
-## 8. Error handling
+## 8. Privacy boundaries and data protection
+
+- **Mutual Masking**:
+  - Requesters cannot see potential donors' phone numbers or email addresses; these fields are redacted (`null`) until a donor accepts.
+  - Donors cannot see requesters' phone numbers until they accept the emergency alert.
+  - When querying `GET /api/requests/:requestId`, donors only receive their own response record to prevent revealing other donors' identities.
+- **Donation Verification Flow**:
+  - Once at the hospital, the accepted donor marks their donation status via `updateDonationStatus(true)`.
+  - This persists `donated: true` and `donatedAt` on the backend, updates the donor's profile metrics (`lastDonationDate`, `totalDonations`), and dispatches an automated in-app confirmation notification to the requester.
+
+## 9. Error handling
 
 - `ApiClient` catches timeouts, socket errors, and HTTP status codes, converting them into structured `ApiException` instances with clear error messages.
 - Screens implement three core states: Loading (spinner), Error (alert banner with retry button), and Loaded Data (with tailored empty states).
 - Models parse JSON defensively (supporting both `id` and `_id`, fallback values, and safe type casting) to prevent parsing crashes.
 - Client forms execute field-level validation before network dispatch.
 
-## 9. Mock API
+## 10. Mock API
 
 To facilitate offline development and uninterrupted demonstrations, the app includes an embedded `MockApi` engine (`lib/services/mock_api.dart`). It persists mock records in `SharedPreferences`, models blood compatibility matrices, and enforces realistic dispatch states. When `kUseMockApi = true`, no network access is needed.
 
-## 10. Limitations and future work
+## 11. Limitations and future work
 
-- Polling introduces small intervals between updates; migrating to WebSocket (Socket.IO) or FCM push notifications would provide instantaneous events with lower battery consumption.
+- Polling introduces small intervals between updates; migrating to WebSocket (Socket.IO) or Firebase Cloud Messaging (FCM) would provide instantaneous push notifications with reduced battery drain.
 - JWT is stored in standard `SharedPreferences`; production hardening should adopt `flutter_secure_storage` with Android Keystore / iOS Keychain.
-- Matching currently filters by city and blood group compatibility with backend ML ranking; distance-based geospatial radius queries (`$nearSphere`) can be introduced in future iterations.
+- Turn-by-turn routing with Google Directions API can be integrated to display live donor transit polylines on the tracking map.
 - This application is an educational prototype and demonstration system, not a certified clinical dispatch device.

@@ -3,7 +3,7 @@
 **Audience:** Frontend web and Flutter/mobile app developers  
 **Backend Base URL:** `https://lifelink-backend-8onj.onrender.com`  
 **Status:** Deployed on Render  
-**Last updated:** 2026-10-13
+**Last updated:** 2026-10-23
 
 > This document describes the API routes confirmed in the backend route code shared by the backend developer. Route availability is confirmed from route definitions, but not every endpoint's request schema or successful behavior has been verified. Check controller validation and actual Postman responses before relying on example request fields.
 
@@ -186,25 +186,39 @@ The example field names may differ from the actual backend schema.
 
 `GET /api/requests`
 
-**Authorization:** Requester or admin token.
+**Authorization:** Requester, admin, or donor token (`requireRole("requester", "admin", "donor")`).
 
-The route is role-protected. The controller may scope requester results to that requester's own records and allow admins to see all records, as intended by the API requirements. Confirm actual behavior with tests.
+Requesters view their own requests, donors view open requests in their operational domain, and admins view all requests. Supports pagination (`?page=1&limit=10`).
+
+### Get blood request by ID (Tracking & Dispatch)
+
+`GET /api/requests/:requestId`
+
+**Authorization:** Requester, admin, or donor token (`requireRole("requester", "admin", "donor")`).
+
+Returns full blood request details, hospital coordinates, units matched, and donor responses:
+- **Privacy Enforcement**: When accessed by a donor, the `responses` array only includes that donor's own response, protecting the privacy of other candidate donors.
+- **Requester Contact Access**: Returns `requesterName` and `requesterPhone` so dispatched donors can coordinate arrival directly.
+- **Donation Verification**: Returns `myDonated` and `maxRadiusKm` based on the request's clinical urgency.
 
 ### Find potential donors for a request
 
 `GET /api/requests/:requestId/potential-donors`
 
-**Authorization:** Requester or admin token.
+**Authorization:** Requester or admin token (`requireRole("requester", "admin")`).
 
-Replace `:requestId` with the actual ID of an existing blood request. Example:
+Returns eligible candidate donors within the clinical urgency radius (5 km for Critical, 10 km for Urgent, 20 km for Normal), sorted by ML response probability ranking (Model 1):
+- **Donor Privacy**: Candidate donors' phone numbers and emails are masked (`null`) to protect volunteer privacy until voluntary alert acceptance.
 
-```text
-GET /api/requests/REPLACE_WITH_REQUEST_ID/potential-donors
-```
+### Cancel own blood request
 
-Returns potential eligible donors according to the matching logic in `getPotentialDonors`. The response may be empty if no donors match.
+`PATCH /api/requests/:requestId/cancel`
 
-> The shared route definitions do not include `GET /api/requests/:requestId`. A request to that separate URL may return `404`; use the documented potential-donors route instead unless another route is added.
+**Authorization:** Requester token (`requireRole("requester")`).
+
+Allows the creating requester to cancel an open or matched blood request.
+
+---
 
 ## 7. Donor response endpoints
 
@@ -214,23 +228,33 @@ These endpoints require a valid **donor** token.
 
 `POST /api/responses/:requestId`
 
-Replace `:requestId` with the existing blood request ID. The request body must match `respondToBloodRequest` in `controllers/donorResponseController.js`.
+**Authorization:** Donor token (`requireRole("donor")`).
 
-Illustrative body only — confirm the exact accepted value and property name in the controller:
+Accepts `{ "status": "accepted" | "declined", "message": "optional note" }`.
+- Synchronizes `unitsAccepted` on the blood request and transitions status to `matched` when all required units are fulfilled.
+- Returns `requesterPhone` and `requesterName` to the accepting donor for hospital dispatch coordination.
+- Creates an in-app notification for the requester informing them of the donor's dispatch.
 
-```json
-{
-  "status": "accepted"
-}
-```
+### Update donation completion status
 
-Use the backend's actual supported values for accepting or declining. Do not assume the example is valid until verified.
+`PATCH /api/responses/:requestId/donation-status`
+
+**Authorization:** Donor token (`requireRole("donor")`).
+
+Accepts `{ "donated": true | false }`.
+- When set to `true`, logs `donatedAt` on the `DonorResponse` record.
+- Updates the donor's `Donor` profile: sets `lastDonationDate` to current timestamp and increments `totalDonations` by 1.
+- Automatically dispatches an in-app notification to the requester: *"Donor has confirmed completing their blood donation for your request."*
 
 ### Get my responses
 
 `GET /api/responses/my`
 
-Returns the authenticated donor's own request responses.
+**Authorization:** Donor token (`requireRole("donor")`).
+
+Returns the authenticated donor's own request responses and donation history with pagination.
+
+---
 
 ## 8. Endpoint summary
 
@@ -241,14 +265,23 @@ Returns the authenticated donor's own request responses.
 | POST | `/api/auth/login` | Public |
 | GET | `/api/auth/me` | Authenticated user |
 | GET | `/api/donors/me` | Donor |
+| PUT / PATCH | `/api/donors/me` | Donor |
 | PATCH | `/api/donors/availability` | Donor |
 | PATCH | `/api/donors/ml-details` | Donor |
 | GET | `/api/donors/available/count` | Requester or admin |
 | POST | `/api/requests` | Requester |
-| GET | `/api/requests` | Requester or admin |
+| GET | `/api/requests` | Requester, admin, donor |
+| GET | `/api/requests/:requestId` | Requester, admin, donor |
+| PATCH | `/api/requests/:requestId/cancel` | Requester (creator) |
 | GET | `/api/requests/:requestId/potential-donors` | Requester or admin |
 | POST | `/api/responses/:requestId` | Donor |
+| PATCH | `/api/responses/:requestId/donation-status` | Donor |
 | GET | `/api/responses/my` | Donor |
+| GET | `/api/notifications` | Authenticated user |
+| GET | `/api/notifications/unread-count` | Authenticated user |
+| PATCH | `/api/notifications/:id/read` | Authenticated user |
+| PATCH | `/api/notifications/read-all` | Authenticated user |
+| DELETE | `/api/notifications/:id` | Authenticated user |
 
 ## 9. Error handling
 
